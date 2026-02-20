@@ -2,7 +2,7 @@
 
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
-import { anyKeyPressed } from './input.js'
+import { anyKeyPressed, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { resetGame, game } from './game.js'
 import { playMusic, sfxTransition } from './audio.js'
@@ -72,7 +72,11 @@ export const title = {
       resetGame()
       saveHighScore()
       sfxTransition()
-      switchState('level1')
+      if (wasPressed('Digit3')) {
+        switchState('level3')
+      } else {
+        switchState('level1')
+      }
     }
   },
 
@@ -153,10 +157,20 @@ export const title = {
     // Blinking prompt — bone/cream thin text
     const blink = Math.sin(timer * 2.5) > 0
     if (blink && timer > 1.0) {
-      drawText('press any key', GAME_WIDTH / 2, GAME_HEIGHT * 0.6, {
+      drawText('press any key to start', GAME_WIDTH / 2, GAME_HEIGHT * 0.58, {
         color: COLORS.bone,
         size: 12,
       })
+    }
+
+    // Practice prompt — always visible after fade-in
+    if (timer > 1.0) {
+      ctx.globalAlpha = 0.5
+      drawText('press 3 to practice dismount', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
+        color: COLORS.ochre,
+        size: 9,
+      })
+      ctx.globalAlpha = 1
     }
 
     // High score — minimal
