@@ -97,3 +97,35 @@ export const L2 = {
   // Level end
   successPause: 2.0,
 }
+
+// Level 3 — Dismount the Worm
+export const L3 = {
+  // Worm dive
+  wormDiveDuration: 4.0,      // seconds before worm fully submerges
+  wormStartRadius: 120,
+  wormShrinkRate: 25,         // pixels per second the worm visual shrinks
+
+  // Safe zone
+  safeZoneBaseRadius: 60,
+  safeZoneShrinkPerLoop: 8,
+  safeZoneMinRadius: 20,
+
+  // Jump
+  jumpChargeRate: 1.0,        // fill rate (0→1 in 1 second)
+  jumpMaxPower: 200,          // max distance in pixels
+  playerSpeed: 120,           // directional aiming speed
+
+  // Hazards
+  rockCountBase: 3,
+  rockCountPerLoop: 2,
+  quicksandCountBase: 1,
+  quicksandCountPerLoop: 1,
+  geyserCountBase: 0,
+  geyserCountPerLoop: 1,
+  geyserInterval: 2.0,       // eruption cycle in seconds
+  geyserDangerDuration: 0.8,
+
+  // Timing
+  deathPause: 1.5,
+  successPause: 1.5,
+}
