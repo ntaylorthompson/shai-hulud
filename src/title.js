@@ -1,4 +1,4 @@
-// Title screen — pixel art title, high score, press any key
+// Title screen — cinematic Villeneuve-style desert horizon
 
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
@@ -22,16 +22,16 @@ function saveHighScore() {
   } catch (e) { /* localStorage unavailable */ }
 }
 
-// Simple blocky pixel font for title
+// Thin pixel font — Villeneuve's Dune uses clean, thin, spaced-out typography
 const TITLE_LETTERS = {
-  S: [' ###','#   ','#   ',' ## ','   #','   #','### '],
-  H: ['#  #','#  #','#  #','####','#  #','#  #','#  #'],
-  A: [' ## ','#  #','#  #','####','#  #','#  #','#  #'],
-  I: ['###',' # ',' # ',' # ',' # ',' # ','###'],
-  '-': ['    ','    ','    ','####','    ','    ','    '],
-  U: ['#  #','#  #','#  #','#  #','#  #','#  #',' ## '],
-  L: ['#   ','#   ','#   ','#   ','#   ','#   ','####'],
-  D: ['### ','#  #','#  #','#  #','#  #','#  #','### '],
+  S: [' ##','#  ','#  ',' # ','  #','  #','## '],
+  H: ['# #','# #','# #','###','# #','# #','# #'],
+  A: [' # ','# #','# #','###','# #','# #','# #'],
+  I: ['#','#','#','#','#','#','#'],
+  '-': ['   ','   ','   ','###','   ','   ','   '],
+  U: ['# #','# #','# #','# #','# #','# #',' # '],
+  L: ['#  ','#  ','#  ','#  ','#  ','#  ','###'],
+  D: ['## ','# #','# #','# #','# #','# #','## '],
 }
 
 function drawPixelTitle(ctx, text, startX, startY, pixelSize) {
@@ -39,22 +39,19 @@ function drawPixelTitle(ctx, text, startX, startY, pixelSize) {
   let offsetX = 0
   for (const ch of letters) {
     const grid = TITLE_LETTERS[ch]
-    if (!grid) { offsetX += 3 * pixelSize; continue }
+    if (!grid) { offsetX += 4 * pixelSize; continue }
     for (let row = 0; row < grid.length; row++) {
       for (let col = 0; col < grid[row].length; col++) {
         if (grid[row][col] === '#') {
           const px = startX + offsetX + col * pixelSize
           const py = startY + row * pixelSize
-          // Shadow
-          ctx.fillStyle = COLORS.deepBrown
-          ctx.fillRect(px + 1, py + 1, pixelSize, pixelSize)
-          // Main
-          ctx.fillStyle = COLORS.sand
-          ctx.fillRect(px, py, pixelSize, pixelSize)
+          ctx.fillStyle = COLORS.bone
+          ctx.fillRect(px, py, pixelSize - 1, pixelSize - 1)
         }
       }
     }
-    offsetX += (grid[0].length + 1) * pixelSize
+    // Extra spacing between letters for that spaced-out Villeneuve look
+    offsetX += (grid[0].length + 2) * pixelSize
   }
   return offsetX
 }
@@ -69,7 +66,7 @@ export const title = {
 
   update(dt) {
     timer += dt
-    fadeIn = Math.min(fadeIn + dt * 2, 1)
+    fadeIn = Math.min(fadeIn + dt * 1.5, 1)
 
     if (timer > 0.5 && anyKeyPressed()) {
       resetGame()
@@ -82,6 +79,14 @@ export const title = {
   render() {
     const ctx = getCtx()
 
+    // Slow zoom/drift via subtle scale transform
+    const zoom = 1 + timer * 0.002
+    const driftX = Math.sin(timer * 0.05) * 3
+    ctx.save()
+    ctx.translate(GAME_WIDTH / 2, GAME_HEIGHT * 0.75)
+    ctx.scale(zoom, zoom)
+    ctx.translate(-GAME_WIDTH / 2 + driftX, -GAME_HEIGHT * 0.75)
+
     // Deep gradient with distant horizon
     clear(COLORS.black)
     const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT)
@@ -92,14 +97,15 @@ export const title = {
     grad.addColorStop(0.82, '#3a2810')
     grad.addColorStop(1, '#1a1208')
     ctx.fillStyle = grad
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ctx.fillRect(-10, -10, GAME_WIDTH + 20, GAME_HEIGHT + 20)
 
-    // Distant sun/moon — single bright point on horizon
-    const sunX = GAME_WIDTH * 0.5 + Math.sin(timer * 0.1) * 20
+    // Distant sun — single bright point on horizon
+    const sunX = GAME_WIDTH * 0.5
     const sunY = GAME_HEIGHT * 0.74
-    const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 60)
-    sunGrad.addColorStop(0, 'rgba(232, 200, 140, 0.6)')
-    sunGrad.addColorStop(0.3, 'rgba(200, 160, 90, 0.2)')
+    const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 80)
+    sunGrad.addColorStop(0, 'rgba(232, 200, 140, 0.7)')
+    sunGrad.addColorStop(0.2, 'rgba(200, 160, 90, 0.3)')
+    sunGrad.addColorStop(0.6, 'rgba(200, 160, 90, 0.05)')
     sunGrad.addColorStop(1, 'rgba(200, 160, 90, 0)')
     ctx.fillStyle = sunGrad
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
@@ -108,47 +114,67 @@ export const title = {
     ctx.arc(sunX, sunY, 3, 0, Math.PI * 2)
     ctx.fill()
 
-    // Sparse dust motes
-    ctx.fillStyle = 'rgba(232, 220, 200, 0.15)'
-    for (let i = 0; i < 15; i++) {
-      const x = ((i * 97 + timer * 12) % GAME_WIDTH)
-      const y = ((i * 53 + timer * 6 + Math.sin(i + timer * 0.5) * 20) % GAME_HEIGHT)
+    // Horizon line
+    ctx.fillStyle = 'rgba(196, 160, 96, 0.15)'
+    ctx.fillRect(0, GAME_HEIGHT * 0.765, GAME_WIDTH, 1)
+
+    ctx.restore()
+
+    // Sparse dust motes (outside zoom transform)
+    ctx.fillStyle = 'rgba(232, 220, 200, 0.12)'
+    for (let i = 0; i < 18; i++) {
+      const x = ((i * 97 + timer * 8) % GAME_WIDTH)
+      const y = ((i * 53 + timer * 4 + Math.sin(i + timer * 0.3) * 20) % GAME_HEIGHT)
       ctx.fillRect(x, y, 1, 1)
     }
 
-    // Pixel art title
+    // Title text — thin, spaced-out pixel font
     const titleText = 'SHAI-HULUD'
-    // Measure width: each letter roughly 5 chars wide * pixelSize + spacing
-    const pixelSize = 4
-    const titleWidth = drawPixelTitle(ctx, titleText, 0, -100, pixelSize) // dry run off-screen
+    const pixelSize = 3
+    const titleWidth = drawPixelTitle(ctx, titleText, 0, -100, pixelSize)
     const titleX = (GAME_WIDTH - titleWidth) / 2
-    const titleY = GAME_HEIGHT / 2 - 70
+    const titleY = GAME_HEIGHT * 0.28
 
     ctx.globalAlpha = fadeIn
     drawPixelTitle(ctx, titleText, titleX, titleY, pixelSize)
     ctx.globalAlpha = 1
 
-    // Subtitle
-    const blink = Math.sin(timer * 3) > 0
-    if (blink && timer > 0.5) {
-      drawText('Press any key to start', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 20, {
-        color: COLORS.bone,
-        size: 16,
-      })
-    }
-
-    // High score
-    if (game.highScore > 0) {
-      drawText(`High Score: ${game.highScore}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 55, {
+    // Subtitle — thin, fading in
+    const subtitleAlpha = Math.max(0, (fadeIn - 0.5) * 2)
+    if (subtitleAlpha > 0) {
+      ctx.globalAlpha = subtitleAlpha * 0.6
+      drawText('R I D E   T H E   W O R M', GAME_WIDTH / 2, titleY + 30, {
         color: COLORS.ochre,
-        size: 14,
+        size: 9,
+      })
+      ctx.globalAlpha = 1
+    }
+
+    // Blinking prompt — bone/cream thin text
+    const blink = Math.sin(timer * 2.5) > 0
+    if (blink && timer > 1.0) {
+      drawText('press any key', GAME_WIDTH / 2, GAME_HEIGHT * 0.6, {
+        color: COLORS.bone,
+        size: 12,
       })
     }
 
-    // Credits
-    drawText('A DUNE ARCADE GAME', GAME_WIDTH / 2, GAME_HEIGHT - 30, {
-      color: '#5a4020',
-      size: 10,
+    // High score — minimal
+    if (game.highScore > 0) {
+      ctx.globalAlpha = 0.5
+      drawText(`high score  ${game.highScore}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.7, {
+        color: COLORS.ochre,
+        size: 10,
+      })
+      ctx.globalAlpha = 1
+    }
+
+    // Credits — very subtle
+    ctx.globalAlpha = 0.3
+    drawText('A  D U N E  A R C A D E  G A M E', GAME_WIDTH / 2, GAME_HEIGHT - 20, {
+      color: COLORS.ochre,
+      size: 8,
     })
+    ctx.globalAlpha = 1
   },
 }

@@ -1,4 +1,4 @@
-// HUD — minimal in-game overlay (lives, score, loop counter)
+// HUD — ultra-minimal cinematic overlay
 
 import { GAME_WIDTH, COLORS } from './config.js'
 import { getCtx } from './renderer.js'
@@ -13,28 +13,29 @@ export function updateHUD() {
 export function renderHUD() {
   const ctx = getCtx()
 
-  // Semi-transparent bar at top
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'
-  ctx.fillRect(0, 0, GAME_WIDTH, 18)
+  // Thin semi-transparent bar
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'
+  ctx.fillRect(0, 0, GAME_WIDTH, 16)
 
-  ctx.font = '12px monospace'
+  ctx.font = '10px monospace'
   ctx.textBaseline = 'middle'
+  ctx.globalAlpha = 0.85
 
-  // Lives (left)
+  // Lives (left) — thin pip marks
   ctx.fillStyle = COLORS.bone
   ctx.textAlign = 'left'
   let livesStr = ''
-  for (let i = 0; i < game.lives; i++) livesStr += '\u2665 '
-  ctx.fillText(livesStr || '\u2665 0', 8, 10)
+  for (let i = 0; i < game.lives; i++) livesStr += '| '
+  ctx.fillText(livesStr || '0', 8, 9)
 
   // Loop (center)
-  ctx.fillStyle = COLORS.sand
   ctx.textAlign = 'center'
-  ctx.fillText(`Loop ${game.loop}`, GAME_WIDTH / 2, 10)
+  ctx.fillText(`loop ${game.loop}`, GAME_WIDTH / 2, 9)
 
   // Score (right)
-  ctx.fillStyle = COLORS.bone
   ctx.textAlign = 'right'
   const muteIcon = isMuted() ? ' [M]' : ''
-  ctx.fillText(`${game.score}${muteIcon}`, GAME_WIDTH - 8, 10)
+  ctx.fillText(`${game.score}${muteIcon}`, GAME_WIDTH - 8, 9)
+
+  ctx.globalAlpha = 1
 }
