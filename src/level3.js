@@ -6,6 +6,7 @@ import { clear, drawText, getCtx } from './renderer.js'
 import { isDown, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, loseLife, addLife, addScore, nextLoop } from './game.js'
+import { renderHUD } from './hud.js'
 
 const PHASE = { AIM: 0, JUMPING: 1, DEATH: 2, SUCCESS: 3 }
 
@@ -368,6 +369,8 @@ export const level3 = {
         color: COLORS.bone, size: 16,
       })
     }
+
+    renderHUD()
   },
 }
 

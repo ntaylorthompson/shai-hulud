@@ -7,6 +7,7 @@ import { clear, drawText, getCtx } from './renderer.js'
 import { wasPressed, anyKeyPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, loseLife, addScore } from './game.js'
+import { renderHUD } from './hud.js'
 
 // Sub-phases
 const PHASE = { WAIT: 0, JUMP: 1, QTE: 2, DEATH: 3, SUCCESS: 4 }
@@ -327,6 +328,8 @@ export const level1 = {
     if (phase === PHASE.SUCCESS) {
       drawText('MOUNTED!', GAME_WIDTH / 2, 30, { color: '#44ff44', size: 28 })
     }
+
+    renderHUD()
   },
 }
 

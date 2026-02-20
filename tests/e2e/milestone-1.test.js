@@ -32,28 +32,26 @@ test.describe('Milestone 1 — Scaffold & Game Loop', () => {
 
   test('pressing a key transitions from title to level 1', async ({ page }) => {
     await page.goto('/')
-    await page.waitForTimeout(200)
+    // Wait past the title screen's input delay (0.5s)
+    await page.waitForTimeout(700)
 
-    // Capture the title screen pixels
-    const titlePixel = await page.evaluate(() => {
-      const ctx = document.getElementById('game').getContext('2d')
-      const d = ctx.getImageData(1, 1, 1, 1).data
-      return [d[0], d[1], d[2]]
+    // Verify we're on the title screen via state machine
+    const beforeState = await page.evaluate(async () => {
+      const state = await import('/src/state.js')
+      return state.getCurrentState()
     })
+    expect(beforeState).toBe('title')
 
     // Press a key to advance
     await page.keyboard.press('Space')
-    await page.waitForTimeout(200)
+    await page.waitForTimeout(300)
 
-    // Capture level 1 pixels — should be different color
-    const level1Pixel = await page.evaluate(() => {
-      const ctx = document.getElementById('game').getContext('2d')
-      const d = ctx.getImageData(1, 1, 1, 1).data
-      return [d[0], d[1], d[2]]
+    // Should now be on level1
+    const afterState = await page.evaluate(async () => {
+      const state = await import('/src/state.js')
+      return state.getCurrentState()
     })
-
-    // Background colors differ between title (deepBrown) and level1 (ochre)
-    expect(level1Pixel).not.toEqual(titlePixel)
+    expect(afterState).toBe('level1')
   })
 
   test('state machine supports full cycle via direct transitions', async ({ page }) => {

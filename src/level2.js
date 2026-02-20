@@ -6,6 +6,7 @@ import { clear, drawText, getCtx } from './renderer.js'
 import { isDown } from './input.js'
 import { switchState } from './state.js'
 import { game, addScore } from './game.js'
+import { renderHUD } from './hud.js'
 
 let worm          // { segments: [{x,y}], angle, speed }
 let enemies       // [{x, y, type, vx, vy, alive}]
@@ -297,5 +298,7 @@ export const level2 = {
         size: 24,
       })
     }
+
+    renderHUD()
   },
 }
