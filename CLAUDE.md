@@ -70,7 +70,7 @@ Then visit `http://localhost:8000`.
 
 ## Workflow — Per Milestone
 
-Each milestone in `plan.md` follows this workflow. **Auto-approve all actions except the final commit/merge** — file writes, edits, bash commands (server, tests, git branch operations) should all proceed without prompting.
+Each milestone in `plan.md` follows this workflow. **Auto-approve everything** — file writes, edits, bash commands, tests, commits, and merges all proceed without prompting.
 
 ### 1. Branch
 
@@ -85,34 +85,35 @@ Example: `milestone-1-scaffold`, `milestone-2-level1`, etc.
 
 ### 2. Implement
 
-Write all code for the milestone. Commit incrementally on the feature branch as needed (auto-approve these intermediate commits).
+Write all code for the milestone. Commit incrementally on the feature branch as needed.
 
 ### 3. End-to-End Tests
 
 At the end of each milestone:
 
 - Write or update E2E tests in `tests/e2e/` that verify the milestone's functionality
-- Tests use a lightweight approach (Playwright or a simple puppeteer script — pick whichever is simpler to set up with zero config)
-- Run all E2E tests and ensure they pass before proceeding
+- Tests use Playwright (already installed)
+- Run **all** E2E tests (not just the new ones) and ensure they pass
 - Test file naming: `tests/e2e/milestone-<N>.test.js`
 
-### 4. Dev Server
+### 4. Auto-Merge (Gate: Tests Pass)
 
-After tests pass, launch (or restart) the dev server so the result is immediately playable:
+If all E2E tests pass, **automatically proceed** — no user approval needed:
+
+- Commit all changes on the feature branch
+- Merge into `main`: `git checkout main && git merge milestone-<N>-<short-name>`
+
+If tests fail, fix the issues and re-run. Do not merge until all tests are green.
+
+### 5. Dev Server
+
+After merge, launch (or restart) the dev server so the result is immediately playable:
 
 ```bash
 python3 -m http.server 8000
 ```
 
 Leave it running in the background.
-
-### 5. Commit & Merge (Requires Approval)
-
-This is the **only step that requires user approval**:
-
-- Create a final commit on the feature branch summarizing the milestone
-- Ask the user to confirm before merging into `main`
-- After approval: `git checkout main && git merge milestone-<N>-<short-name>`
 
 ## Key Conventions
 

@@ -4,12 +4,14 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config.js'
 import { clear, drawText } from './renderer.js'
 import { anyKeyPressed } from './input.js'
 import { switchState } from './state.js'
+import { resetGame, game } from './game.js'
 
 export const title = {
   enter() {},
 
   update(dt) {
     if (anyKeyPressed()) {
+      resetGame()
       switchState('level1')
     }
   },
@@ -24,5 +26,11 @@ export const title = {
       color: COLORS.bone,
       size: 16,
     })
+    if (game.highScore > 0) {
+      drawText(`High Score: ${game.highScore}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 60, {
+        color: COLORS.ochre,
+        size: 14,
+      })
+    }
   },
 }
