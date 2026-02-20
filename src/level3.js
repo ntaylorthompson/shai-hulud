@@ -8,7 +8,7 @@ import { isDown, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, loseLife, addLife, addScore, nextLoop } from './game.js'
 import { renderHUD } from './hud.js'
-import { playMusic, sfxJump, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
+import { playMusic, sfxJump, sfxDeath, sfxSuccess, sfxWormRumble, setMusicIntensity } from './audio.js'
 import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
 
 const PHASE = { RIDE: 0, CHARGING: 1, JUMPING: 2, WALKING: 3, DEATH: 4, SUCCESS: 5 }
@@ -168,6 +168,9 @@ export const level3 = {
         wDiveProgress = clamp(wDiveProgress + diveRate, 0, 1.5)
       }
       refreshWormSegs()
+
+      // Dynamic music intensity tied to dive progress
+      setMusicIntensity(Math.min(wDiveProgress, 1))
 
       // Sand trail particles
       for (const seg of wSegs) {

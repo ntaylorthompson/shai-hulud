@@ -7,7 +7,7 @@ import { isDown } from './input.js'
 import { switchState } from './state.js'
 import { game, addScore, loseLife } from './game.js'
 import { renderHUD } from './hud.js'
-import { playMusic, sfxEat, sfxSuccess, sfxDeath } from './audio.js'
+import { playMusic, sfxEat, sfxSuccess, sfxDeath, setMusicIntensity } from './audio.js'
 import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
 
 const W = GAME_WIDTH
@@ -224,6 +224,12 @@ export const level2 = {
       comboTimer -= dt
       if (comboTimer <= 0) comboCount = 0
     }
+
+    // Dynamic music intensity — rises with combo + danger proximity
+    const dangerNearHead = countNearbyDanger(head.x, head.y)
+    const comboIntensity = Math.min(comboCount * 0.15, 0.6)
+    const dangerIntensity = Math.min(dangerNearHead * 0.2, 0.4)
+    setMusicIntensity(comboIntensity + dangerIntensity)
 
     // Close call tracking — are we near 2+ large enemies?
     const nearbyDanger = countNearbyDanger(head.x, head.y)
