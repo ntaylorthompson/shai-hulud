@@ -400,35 +400,78 @@ export const level3 = {
         const radius = Math.max(20 - i * 1.5, 8)
         if (seg.y > GROUND_Y + radius + 10) continue
 
-        ctx.fillStyle = i === 0 ? COLORS.deepBrown : COLORS.burntOrange
-        ctx.beginPath()
-        ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2)
-        ctx.fill()
-
         // Sand splash at ground line
         if (seg.y > GROUND_Y - radius && seg.y < GROUND_Y + radius + 5) {
-          ctx.fillStyle = '#d4a030'
+          ctx.fillStyle = 'rgba(160, 128, 80, 0.4)'
           ctx.beginPath()
           ctx.ellipse(seg.x, GROUND_Y + 10, radius + 5, 6, 0, 0, Math.PI * 2)
           ctx.fill()
         }
+
+        // Textured segment body
+        ctx.fillStyle = COLORS.wormSkin
+        ctx.beginPath()
+        ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2)
+        ctx.fill()
+        // Inner shadow
+        ctx.fillStyle = '#6a5a48'
+        ctx.beginPath()
+        ctx.arc(seg.x + 1, seg.y + 2, radius * 0.65, 0, Math.PI * 2)
+        ctx.fill()
+        // Highlight top-left
+        ctx.fillStyle = 'rgba(200, 185, 155, 0.3)'
+        ctx.beginPath()
+        ctx.arc(seg.x - radius * 0.2, seg.y - radius * 0.2, radius * 0.4, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Ring ridges between segments
+        if (i < wSegs.length - 1) {
+          const next = wSegs[i + 1]
+          if (next.y <= GROUND_Y + radius + 10) {
+            const midX = (seg.x + next.x) / 2
+            const midY = (seg.y + next.y) / 2
+            ctx.strokeStyle = '#5a4a38'
+            ctx.lineWidth = 1.5
+            ctx.beginPath()
+            ctx.arc(midX, midY, radius * 0.7, 0, Math.PI)
+            ctx.stroke()
+          }
+        }
       }
 
-      // Head details (mouth + teeth)
+      // Head baleen mouth (side view, same as Level 1)
       const head = wSegs[0]
       if (head.y < GROUND_Y + 15) {
-        ctx.fillStyle = COLORS.deepBrown
+        const mouthX = head.x + wDir * 14
+        const mouthR = 10
+        // Outer ring
+        ctx.fillStyle = COLORS.wormMouth
         ctx.beginPath()
-        ctx.arc(head.x + wDir * 8, head.y, 10, 0, Math.PI * 2)
+        ctx.arc(mouthX, head.y, mouthR, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = COLORS.bone
-        for (let t = 0; t < 5; t++) {
-          const a = (t / 5) * Math.PI * 2
+        // Baleen teeth
+        ctx.fillStyle = COLORS.wormTooth
+        const teethCount = 10
+        for (let t = 0; t < teethCount; t++) {
+          const a = (t / teethCount) * Math.PI * 2
+          const outerX = mouthX + Math.cos(a) * mouthR * 0.95
+          const outerY = head.y + Math.sin(a) * mouthR * 0.95
+          const innerX = mouthX + Math.cos(a) * mouthR * 0.3
+          const innerY = head.y + Math.sin(a) * mouthR * 0.3
+          const perpX = Math.cos(a + Math.PI / 2) * 1.8
+          const perpY = Math.sin(a + Math.PI / 2) * 1.8
           ctx.beginPath()
-          ctx.arc(head.x + wDir * 8 + Math.cos(a) * 8,
-            head.y + Math.sin(a) * 8, 2, 0, Math.PI * 2)
+          ctx.moveTo(outerX - perpX, outerY - perpY)
+          ctx.lineTo(outerX + perpX, outerY + perpY)
+          ctx.lineTo(innerX, innerY)
+          ctx.closePath()
           ctx.fill()
         }
+        // Inner throat
+        ctx.fillStyle = COLORS.deepBrown
+        ctx.beginPath()
+        ctx.arc(mouthX, head.y, mouthR * 0.25, 0, Math.PI * 2)
+        ctx.fill()
       }
     }
 

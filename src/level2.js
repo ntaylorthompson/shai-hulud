@@ -370,36 +370,79 @@ export const level2 = {
       const seg = worm.segments[i]
       const radius = L2.wormSegmentSize / 2 - i * 0.3
       const r = Math.max(radius, 5)
-      ctx.fillStyle = i === 0 ? COLORS.deepBrown : COLORS.burntOrange
-      drawWrapped(ctx, seg.x, seg.y, r, (cx, cy) => {
+      drawWrapped(ctx, seg.x, seg.y, r + 2, (cx, cy) => {
+        // Base segment
+        ctx.fillStyle = COLORS.wormSkin
         ctx.beginPath()
         ctx.arc(cx, cy, r, 0, Math.PI * 2)
         ctx.fill()
+        // Inner shadow
+        ctx.fillStyle = '#6a5a48'
+        ctx.beginPath()
+        ctx.arc(cx + 0.5, cy + 1, r * 0.6, 0, Math.PI * 2)
+        ctx.fill()
+        // Highlight
+        ctx.fillStyle = 'rgba(200, 185, 155, 0.3)'
+        ctx.beginPath()
+        ctx.arc(cx - r * 0.2, cy - r * 0.2, r * 0.35, 0, Math.PI * 2)
+        ctx.fill()
       })
+      // Ring ridges between segments
+      if (i > 0 && i < worm.segments.length) {
+        const prev = worm.segments[i - 1]
+        const midX = (seg.x + prev.x) / 2
+        const midY = (seg.y + prev.y) / 2
+        drawWrapped(ctx, midX, midY, r, (cx, cy) => {
+          ctx.strokeStyle = '#5a4a38'
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.arc(cx, cy, r * 0.7, 0, Math.PI * 2)
+          ctx.stroke()
+        })
+      }
     }
 
-    // Worm mouth (head) — with wrap rendering
+    // Worm mouth (head) — full circular baleen (top-down)
     const head = worm.segments[0]
     const mouthX = head.x + Math.cos(worm.angle) * 8
     const mouthY = head.y + Math.sin(worm.angle) * 8
-    ctx.fillStyle = COLORS.deepBrown
-    drawWrapped(ctx, mouthX, mouthY, 8, (cx, cy) => {
+    const mouthR = 10
+    drawWrapped(ctx, mouthX, mouthY, mouthR + 2, (cx, cy) => {
+      // Outer ring
+      ctx.fillStyle = COLORS.wormMouth
       ctx.beginPath()
-      ctx.arc(cx, cy, 8, 0, Math.PI * 2)
+      ctx.arc(cx, cy, mouthR, 0, Math.PI * 2)
       ctx.fill()
-    })
-    // Teeth
-    ctx.fillStyle = COLORS.bone
-    for (let i = 0; i < 4; i++) {
-      const a = worm.angle + (i - 1.5) * 0.5
-      const tx = head.x + Math.cos(a) * 14
-      const ty = head.y + Math.sin(a) * 14
-      drawWrapped(ctx, tx, ty, 2, (cx, cy) => {
+      // Baleen teeth — radiating triangles
+      ctx.fillStyle = COLORS.wormTooth
+      const teethCount = 14
+      for (let t = 0; t < teethCount; t++) {
+        const a = (t / teethCount) * Math.PI * 2
+        const outerX = cx + Math.cos(a) * mouthR * 0.95
+        const outerY = cy + Math.sin(a) * mouthR * 0.95
+        const innerX = cx + Math.cos(a) * mouthR * 0.3
+        const innerY = cy + Math.sin(a) * mouthR * 0.3
+        const perpX = Math.cos(a + Math.PI / 2) * 1.5
+        const perpY = Math.sin(a + Math.PI / 2) * 1.5
         ctx.beginPath()
-        ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+        ctx.moveTo(outerX - perpX, outerY - perpY)
+        ctx.lineTo(outerX + perpX, outerY + perpY)
+        ctx.lineTo(innerX, innerY)
+        ctx.closePath()
         ctx.fill()
-      })
-    }
+      }
+      // Inner throat
+      ctx.fillStyle = COLORS.deepBrown
+      ctx.beginPath()
+      ctx.arc(cx, cy, mouthR * 0.25, 0, Math.PI * 2)
+      ctx.fill()
+      // Tooth edge highlight
+      ctx.strokeStyle = 'rgba(200, 185, 155, 0.15)'
+      ctx.lineWidth = 0.5
+      ctx.beginPath()
+      ctx.arc(cx, cy, mouthR * 0.9, 0, Math.PI * 2)
+      ctx.stroke()
+    })
 
     // Rider (tiny person on second segment)
     if (worm.segments.length > 1) {

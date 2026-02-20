@@ -347,20 +347,34 @@ export const level1 = {
 
     const showWorm = (wActive || phase === PHASE.QTE || phase === PHASE.SUCCESS) && wSegs.length
 
-    // Wormsign — sand bumps for underground segments
+    // Wormsign — cinematic treatment for underground segments
     if (showWorm) {
       for (let i = 0; i < wSegs.length; i++) {
         const seg = wSegs[i]
         if (isSurfaced(seg) || seg.x < -10 || seg.x > GAME_WIDTH + 10) continue
-        ctx.fillStyle = '#d4a020'
+        // Subtle raised sand ridge
+        ctx.fillStyle = 'rgba(200, 170, 120, 0.35)'
         ctx.beginPath()
-        ctx.ellipse(seg.x, GROUND_Y + 18, 14, 5, 0, 0, Math.PI * 2)
+        ctx.ellipse(seg.x, GROUND_Y + 16, 16, 3, 0, 0, Math.PI * 2)
         ctx.fill()
-        ctx.strokeStyle = '#b88a10'
+        // Thin highlight line
+        ctx.strokeStyle = 'rgba(232, 220, 200, 0.2)'
         ctx.lineWidth = 1
         ctx.beginPath()
-        ctx.arc(seg.x, GROUND_Y + 22, 18, 0, Math.PI)
+        ctx.moveTo(seg.x - 14, GROUND_Y + 15)
+        ctx.lineTo(seg.x + 14, GROUND_Y + 15)
         ctx.stroke()
+        // Vibration rings — concentric arcs radiating outward
+        for (let r = 0; r < 3; r++) {
+          const ringR = 20 + r * 12
+          const alpha = 0.08 - r * 0.025
+          if (alpha <= 0) continue
+          ctx.strokeStyle = `rgba(200, 170, 120, ${alpha})`
+          ctx.lineWidth = 0.5
+          ctx.beginPath()
+          ctx.arc(seg.x, GROUND_Y + 18, ringR, Math.PI * 0.8, Math.PI * 0.2)
+          ctx.stroke()
+        }
       }
     }
 
@@ -373,42 +387,95 @@ export const level1 = {
         const radius = Math.max(L1.wormSegmentSize / 2 - i * 1.2, 9)
 
         if (isHead) {
-          // Head: red danger glow + dark body
-          ctx.fillStyle = 'rgba(255,50,50,0.25)'
-          ctx.beginPath()
-          ctx.arc(seg.x, seg.y, radius + 8, 0, Math.PI * 2)
-          ctx.fill()
-          ctx.fillStyle = '#8b2200'
+          // Neck connecting head to ground
+          ctx.fillStyle = COLORS.wormSkin
+          ctx.fillRect(seg.x - 7, seg.y, 14, GROUND_Y - seg.y + 5)
+          ctx.fillStyle = '#6a5a48'
+          ctx.fillRect(seg.x - 3, seg.y, 6, GROUND_Y - seg.y + 5)
+
+          // Head body
+          ctx.fillStyle = COLORS.wormSkin
           ctx.beginPath()
           ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2)
           ctx.fill()
-          // Mouth
-          ctx.fillStyle = COLORS.deepBrown
+          // Inner shadow
+          ctx.fillStyle = '#6a5a48'
           ctx.beginPath()
-          ctx.arc(seg.x + wDir * 10, seg.y, 10, 0, Math.PI * 2)
+          ctx.arc(seg.x + 1, seg.y + 2, radius * 0.7, 0, Math.PI * 2)
           ctx.fill()
-          // Teeth
-          ctx.fillStyle = COLORS.bone
-          for (let t = 0; t < 5; t++) {
-            const a = (t / 5) * Math.PI * 2
+          // Highlight top-left
+          ctx.fillStyle = 'rgba(200, 185, 155, 0.3)'
+          ctx.beginPath()
+          ctx.arc(seg.x - radius * 0.25, seg.y - radius * 0.25, radius * 0.4, 0, Math.PI * 2)
+          ctx.fill()
+
+          // Baleen mouth — half-circle facing movement direction (side view)
+          const mouthX = seg.x + wDir * (radius + 4)
+          const mouthR = radius * 0.9
+          // Outer ring
+          ctx.fillStyle = COLORS.wormMouth
+          ctx.beginPath()
+          ctx.arc(mouthX, seg.y, mouthR, 0, Math.PI * 2)
+          ctx.fill()
+          // Baleen teeth — radiating triangles
+          ctx.fillStyle = COLORS.wormTooth
+          const teethCount = 10
+          for (let t = 0; t < teethCount; t++) {
+            const a = (t / teethCount) * Math.PI * 2
+            const outerX = mouthX + Math.cos(a) * mouthR * 0.95
+            const outerY = seg.y + Math.sin(a) * mouthR * 0.95
+            const innerX = mouthX + Math.cos(a) * mouthR * 0.3
+            const innerY = seg.y + Math.sin(a) * mouthR * 0.3
+            const perpX = Math.cos(a + Math.PI / 2) * 2
+            const perpY = Math.sin(a + Math.PI / 2) * 2
             ctx.beginPath()
-            ctx.arc(seg.x + wDir * 10 + Math.cos(a) * 8, seg.y + Math.sin(a) * 8, 2, 0, Math.PI * 2)
+            ctx.moveTo(outerX - perpX, outerY - perpY)
+            ctx.lineTo(outerX + perpX, outerY + perpY)
+            ctx.lineTo(innerX, innerY)
+            ctx.closePath()
             ctx.fill()
           }
-          // "Neck" connecting head to ground
-          ctx.fillStyle = '#8b2200'
-          ctx.fillRect(seg.x - 6, seg.y, 12, GROUND_Y - seg.y + 5)
+          // Inner throat
+          ctx.fillStyle = COLORS.deepBrown
+          ctx.beginPath()
+          ctx.arc(mouthX, seg.y, mouthR * 0.25, 0, Math.PI * 2)
+          ctx.fill()
+          // Subtle tooth edge highlight
+          ctx.strokeStyle = 'rgba(200, 185, 155, 0.2)'
+          ctx.lineWidth = 0.5
+          ctx.beginPath()
+          ctx.arc(mouthX, seg.y, mouthR * 0.9, 0, Math.PI * 2)
+          ctx.stroke()
         } else {
-          // Body: safe orange segments, partially in sand
-          ctx.fillStyle = COLORS.burntOrange
+          // Body: textured segmented worm
+          // Base circle
+          ctx.fillStyle = COLORS.wormSkin
           ctx.beginPath()
           ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2)
           ctx.fill()
-          // Lighter top half to suggest "land here"
-          ctx.fillStyle = '#dd8822'
+          // Inner shadow (depth)
+          ctx.fillStyle = '#6a5a48'
           ctx.beginPath()
-          ctx.arc(seg.x, seg.y, radius, Math.PI, 0)
+          ctx.arc(seg.x + 1, seg.y + 2, radius * 0.65, 0, Math.PI * 2)
           ctx.fill()
+          // Highlight top-left (light source above-left)
+          ctx.fillStyle = 'rgba(200, 185, 155, 0.35)'
+          ctx.beginPath()
+          ctx.arc(seg.x - radius * 0.2, seg.y - radius * 0.2, radius * 0.45, 0, Math.PI * 2)
+          ctx.fill()
+          // Ring ridge between segments
+          if (i < wSegs.length - 1) {
+            const next = wSegs[i + 1]
+            if (isSurfaced(next)) {
+              const midX = (seg.x + next.x) / 2
+              const midY = (seg.y + next.y) / 2
+              ctx.strokeStyle = '#5a4a38'
+              ctx.lineWidth = 1.5
+              ctx.beginPath()
+              ctx.arc(midX, midY, radius * 0.8, 0, Math.PI)
+              ctx.stroke()
+            }
+          }
         }
       }
     }
