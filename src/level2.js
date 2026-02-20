@@ -23,6 +23,7 @@ let comboCount, comboTimer
 let sandTiles     // background texture
 let phase         // 'play' | 'success' | 'death'
 let phaseTimer
+let animTimer
 let deathMessage
 let closeCallTimer    // countdown to display "CLOSE CALL"
 let closeCallTracking // true when near 2+ dangerous enemies
@@ -132,6 +133,7 @@ export const level2 = {
     sandTiles = generateSandTiles()
     phase = 'play'
     phaseTimer = 0
+    animTimer = 0
     deathMessage = ''
     closeCallTimer = 0
     closeCallTracking = false
@@ -145,6 +147,7 @@ export const level2 = {
   },
 
   update(dt) {
+    animTimer += dt
     if (phase === 'success') {
       phaseTimer += dt
       if (phaseTimer >= L2.successPause) {
@@ -450,19 +453,32 @@ export const level2 = {
       ctx.stroke()
     })
 
-    // Rider (tiny person on second segment)
+    // Rider — Fremen stilsuit (crouched on second segment)
     if (worm.segments.length > 1) {
       const rideSeg = worm.segments[1]
       drawWrapped(ctx, rideSeg.x, rideSeg.y, 15, (cx, cy) => {
         ctx.fillStyle = COLORS.spiceBlue
-        ctx.fillRect(cx - 3, cy - 10, 6, 8)
-        ctx.fillStyle = COLORS.bone
+        ctx.fillRect(cx - 3, cy - 10, 6, 6)
+        // Hood peak
         ctx.beginPath()
-        ctx.arc(cx, cy - 13, 3, 0, Math.PI * 2)
+        ctx.moveTo(cx - 4, cy - 10)
+        ctx.lineTo(cx, cy - 15)
+        ctx.lineTo(cx + 4, cy - 10)
+        ctx.closePath()
         ctx.fill()
-        ctx.fillStyle = COLORS.deepBrown
-        ctx.fillRect(cx - 5, cy - 2, 3, 5)
-        ctx.fillRect(cx + 2, cy - 2, 3, 5)
+        // Head
+        ctx.fillStyle = '#4a6a7a'
+        ctx.beginPath()
+        ctx.arc(cx, cy - 11, 3, 0, Math.PI * 2)
+        ctx.fill()
+        // Blue eyes
+        ctx.fillStyle = '#88bbff'
+        ctx.fillRect(cx - 1, cy - 12, 1, 1)
+        ctx.fillRect(cx + 1, cy - 12, 1, 1)
+        // Crouched legs
+        ctx.fillStyle = COLORS.spiceBlue
+        ctx.fillRect(cx - 3, cy - 4, 2, 4)
+        ctx.fillRect(cx + 1, cy - 4, 2, 4)
       })
     }
 
@@ -522,81 +538,149 @@ function drawEnemy(ctx, e) {
 
   if (e.type === 'soldier') {
     if (isLarge) {
-      ctx.fillStyle = '#ff2222'
+      // Harkonnen heavy troop — 1.5x scale, shoulder pads, red glow
+      // Red danger glow
+      const glowGrad = ctx.createRadialGradient(e.x, e.y, 6, e.x, e.y, 22)
+      glowGrad.addColorStop(0, 'rgba(74,16,16,0.3)')
+      glowGrad.addColorStop(1, 'rgba(74,16,16,0)')
+      ctx.fillStyle = glowGrad
+      ctx.fillRect(e.x - 22, e.y - 22, 44, 44)
+      // Shoulder pads — wider silhouette
+      ctx.fillStyle = COLORS.harkonnen
+      ctx.fillRect(e.x - 12, e.y - 6, 24, 6)
+      // Black armor body
+      ctx.fillRect(e.x - 8, e.y - 12, 16, 24)
+      // Bald round head
       ctx.beginPath()
-      ctx.arc(e.x, e.y, 14, 0, Math.PI * 2)
+      ctx.arc(e.x, e.y - 15, 6, 0, Math.PI * 2)
       ctx.fill()
-      ctx.fillStyle = '#8b0000'
-      ctx.fillRect(e.x - 8, e.y - 10, 16, 20)
-      ctx.fillStyle = '#cc0000'
-      ctx.fillRect(e.x - 6, e.y - 14, 12, 6)
-      ctx.strokeStyle = '#ff0'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(e.x - 10, e.y - 16); ctx.lineTo(e.x + 10, e.y - 16)
-      ctx.stroke()
+      // Red visor
+      ctx.fillStyle = COLORS.harkAccent
+      ctx.fillRect(e.x - 5, e.y - 16, 10, 2)
+      // Shield shimmer (occasional)
+      if (Math.sin(animTimer * 4 + e.x) > 0.85) {
+        ctx.strokeStyle = 'rgba(150,180,255,0.3)'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.arc(e.x, e.y, 16, 0, Math.PI * 2)
+        ctx.stroke()
+      }
     } else {
-      // Bigger small soldier — visible body + head
-      ctx.fillStyle = '#8b0000'
-      ctx.fillRect(e.x - 5, e.y - 7, 10, 14)
-      ctx.fillStyle = '#cc0000'
-      ctx.fillRect(e.x - 4, e.y - 12, 8, 6)
-      // Arms
-      ctx.fillStyle = '#8b0000'
-      ctx.fillRect(e.x - 8, e.y - 4, 3, 8)
-      ctx.fillRect(e.x + 5, e.y - 4, 3, 8)
+      // Harkonnen soldier — small/edible
+      // Black armor body
+      ctx.fillStyle = COLORS.harkonnen
+      ctx.fillRect(e.x - 4, e.y - 6, 8, 12)
+      // Bald round head
+      ctx.beginPath()
+      ctx.arc(e.x, e.y - 9, 4, 0, Math.PI * 2)
+      ctx.fill()
+      // Red visor
+      ctx.fillStyle = COLORS.harkAccent
+      ctx.fillRect(e.x - 3, e.y - 10, 6, 1)
     }
   } else if (e.type === 'harvester') {
     if (isLarge) {
-      ctx.fillStyle = '#ff4400'
+      // Large harvester — industrial rectangular body
+      // Main body
+      ctx.fillStyle = '#3a3a3a'
+      ctx.fillRect(e.x - 16, e.y - 10, 32, 20)
+      // Lighter inner panel
+      ctx.fillStyle = '#505050'
+      ctx.fillRect(e.x - 14, e.y - 8, 28, 16)
+      // Intake scoop (triangular front)
+      ctx.fillStyle = '#2a2a2a'
       ctx.beginPath()
-      ctx.arc(e.x, e.y, 18, 0, Math.PI * 2)
+      ctx.moveTo(e.x + 16, e.y - 6)
+      ctx.lineTo(e.x + 22, e.y)
+      ctx.lineTo(e.x + 16, e.y + 6)
+      ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = '#444'
-      ctx.fillRect(e.x - 16, e.y - 12, 32, 24)
-      ctx.fillStyle = '#777'
-      ctx.fillRect(e.x - 14, e.y - 10, 28, 20)
-      ctx.fillStyle = '#222'
-      ctx.fillRect(e.x - 17, e.y + 10, 34, 4)
-      ctx.fillStyle = '#ff0'
-      ctx.fillRect(e.x - 14, e.y - 12, 28, 3)
+      // Tracks/treads
+      ctx.fillStyle = '#1a1a1a'
+      ctx.fillRect(e.x - 18, e.y + 8, 36, 4)
+      // Tread hatching
+      for (let h = 0; h < 6; h++) {
+        ctx.fillStyle = '#333'
+        ctx.fillRect(e.x - 16 + h * 6, e.y + 8, 2, 4)
+      }
+      // Exhaust/spice dust trail
+      if (Math.random() < 0.3) {
+        ctx.fillStyle = 'rgba(139, 96, 48, 0.3)'
+        ctx.beginPath()
+        ctx.arc(e.x - 18 + Math.random() * 4, e.y + Math.random() * 4, 2 + Math.random() * 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
     } else {
-      // Bigger small harvester
-      ctx.fillStyle = '#555'
-      ctx.fillRect(e.x - 10, e.y - 7, 20, 14)
-      ctx.fillStyle = '#888'
+      // Small harvester
+      ctx.fillStyle = '#3a3a3a'
       ctx.fillRect(e.x - 8, e.y - 5, 16, 10)
-      ctx.fillStyle = '#333'
-      ctx.fillRect(e.x - 11, e.y + 5, 22, 3)
+      ctx.fillStyle = '#505050'
+      ctx.fillRect(e.x - 6, e.y - 3, 12, 6)
+      // Tracks
+      ctx.fillStyle = '#1a1a1a'
+      ctx.fillRect(e.x - 9, e.y + 4, 18, 2)
     }
   } else {
+    // Ornithopter — dragonfly-wing silhouette
+    const wingFlap = Math.sin(animTimer * 8 + e.x) * 0.4
     if (isLarge) {
-      ctx.fillStyle = '#ff2222'
+      // Red danger glow
+      const glowGrad = ctx.createRadialGradient(e.x, e.y, 5, e.x, e.y, 20)
+      glowGrad.addColorStop(0, 'rgba(74,16,16,0.25)')
+      glowGrad.addColorStop(1, 'rgba(74,16,16,0)')
+      ctx.fillStyle = glowGrad
+      ctx.fillRect(e.x - 20, e.y - 20, 40, 40)
+      // Narrow fuselage
+      ctx.fillStyle = '#2a2a2e'
+      ctx.fillRect(e.x - 2, e.y - 8, 4, 16)
+      // 4 wings — tapered ellipses with bezier curves, semi-transparent
+      const savedAlpha = ctx.globalAlpha
+      ctx.globalAlpha = 0.6
+      ctx.fillStyle = '#5a5a60'
+      // Top-left wing
       ctx.beginPath()
-      ctx.arc(e.x, e.y, 16, 0, Math.PI * 2)
-      ctx.fill()
-      ctx.fillStyle = '#555'
-      ctx.beginPath()
-      ctx.moveTo(e.x, e.y - 14)
-      ctx.lineTo(e.x + 20, e.y)
-      ctx.lineTo(e.x, e.y + 10)
-      ctx.lineTo(e.x - 20, e.y)
+      ctx.moveTo(e.x, e.y - 2)
+      ctx.bezierCurveTo(e.x - 10, e.y - 8 - wingFlap * 10, e.x - 22, e.y - 4 - wingFlap * 6, e.x - 18, e.y)
       ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = '#888'
-      ctx.fillRect(e.x - 22, e.y - 3, 44, 6)
+      // Top-right wing
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y - 2)
+      ctx.bezierCurveTo(e.x + 10, e.y - 8 - wingFlap * 10, e.x + 22, e.y - 4 - wingFlap * 6, e.x + 18, e.y)
+      ctx.closePath()
+      ctx.fill()
+      // Bottom-left wing
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y + 2)
+      ctx.bezierCurveTo(e.x - 10, e.y + 6 + wingFlap * 8, e.x - 20, e.y + 2 + wingFlap * 4, e.x - 16, e.y)
+      ctx.closePath()
+      ctx.fill()
+      // Bottom-right wing
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y + 2)
+      ctx.bezierCurveTo(e.x + 10, e.y + 6 + wingFlap * 8, e.x + 20, e.y + 2 + wingFlap * 4, e.x + 16, e.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.globalAlpha = savedAlpha
     } else {
-      // Bigger small ornithopter
-      ctx.fillStyle = '#666'
+      // Small ornithopter
+      ctx.fillStyle = '#2a2a2e'
+      ctx.fillRect(e.x - 1, e.y - 5, 3, 10)
+      // Wings
+      const savedAlpha = ctx.globalAlpha
+      ctx.globalAlpha = 0.6
+      ctx.fillStyle = '#5a5a60'
       ctx.beginPath()
-      ctx.moveTo(e.x, e.y - 8)
-      ctx.lineTo(e.x + 12, e.y)
-      ctx.lineTo(e.x, e.y + 6)
-      ctx.lineTo(e.x - 12, e.y)
+      ctx.moveTo(e.x, e.y - 1)
+      ctx.bezierCurveTo(e.x - 6, e.y - 5 - wingFlap * 6, e.x - 14, e.y - 2 - wingFlap * 4, e.x - 10, e.y)
       ctx.closePath()
       ctx.fill()
-      ctx.fillStyle = '#999'
-      ctx.fillRect(e.x - 14, e.y - 2, 28, 4)
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y - 1)
+      ctx.bezierCurveTo(e.x + 6, e.y - 5 - wingFlap * 6, e.x + 14, e.y - 2 - wingFlap * 4, e.x + 10, e.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.globalAlpha = savedAlpha
     }
   }
 }

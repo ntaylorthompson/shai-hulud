@@ -480,26 +480,13 @@ export const level1 = {
       }
     }
 
-    // Player
+    // Player — Fremen stilsuit silhouette
     const px = playerX
     const py = (phase === PHASE.QTE || phase === PHASE.SUCCESS) && showWorm && wSegs[mountSegIdx]
       ? wSegs[mountSegIdx].y - 14
       : playerY
-    ctx.fillStyle = COLORS.spiceBlue
-    ctx.fillRect(px - 8, py - 24, 16, 20)
-    ctx.fillStyle = COLORS.bone
-    ctx.beginPath()
-    ctx.arc(px, py - 30, 8, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = COLORS.deepBrown
-    if (playerOnGround && phase !== PHASE.QTE && phase !== PHASE.SUCCESS) {
-      const legAnim = Math.sin(scrollOffset * 0.2) * 4
-      ctx.fillRect(px - 6, py - 4, 5, 12 + legAnim)
-      ctx.fillRect(px + 1, py - 4, 5, 12 - legAnim)
-    } else {
-      ctx.fillRect(px - 6, py - 4, 5, 10)
-      ctx.fillRect(px + 1, py - 4, 5, 10)
-    }
+    const onWorm = phase === PHASE.QTE || phase === PHASE.SUCCESS
+    drawFremen(ctx, px, py, onWorm, playerOnGround && !onWorm ? scrollOffset : 0)
 
     // QTE overlay
     if (phase === PHASE.QTE) {
@@ -544,4 +531,41 @@ export const level1 = {
 
     renderHUD()
   },
+}
+
+// Fremen stilsuit silhouette
+function drawFremen(ctx, x, y, crouched, walkOffset) {
+  const crouch = crouched ? 4 : 0
+  // Stilsuit body
+  ctx.fillStyle = COLORS.spiceBlue
+  ctx.fillRect(x - 6, y - 22 + crouch, 12, 16 - crouch)
+  // Hood with peak
+  ctx.beginPath()
+  ctx.moveTo(x - 7, y - 22 + crouch)
+  ctx.lineTo(x, y - 30 + crouch)
+  ctx.lineTo(x + 7, y - 22 + crouch)
+  ctx.closePath()
+  ctx.fill()
+  // Head under hood
+  ctx.fillStyle = '#4a6a7a'
+  ctx.beginPath()
+  ctx.arc(x, y - 24 + crouch, 5, 0, Math.PI * 2)
+  ctx.fill()
+  // Blue-within-blue eyes
+  ctx.fillStyle = '#4488cc'
+  ctx.fillRect(x - 3, y - 25 + crouch, 2, 1)
+  ctx.fillRect(x + 1, y - 25 + crouch, 2, 1)
+  ctx.fillStyle = '#88bbff'
+  ctx.fillRect(x - 2, y - 25 + crouch, 1, 1)
+  ctx.fillRect(x + 2, y - 25 + crouch, 1, 1)
+  // Legs
+  ctx.fillStyle = COLORS.spiceBlue
+  if (walkOffset && !crouched) {
+    const legAnim = Math.sin(walkOffset * 0.2) * 4
+    ctx.fillRect(x - 4, y - 6, 3, 10 + legAnim)
+    ctx.fillRect(x + 1, y - 6, 3, 10 - legAnim)
+  } else {
+    ctx.fillRect(x - 4, y - 6, 3, crouched ? 6 : 10)
+    ctx.fillRect(x + 1, y - 6, 3, crouched ? 6 : 10)
+  }
 }

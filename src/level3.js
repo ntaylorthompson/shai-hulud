@@ -110,16 +110,34 @@ function die() {
   }
 }
 
-function drawPlayer(ctx, x, y) {
+function drawPlayer(ctx, x, y, crouched = false) {
+  const crouch = crouched ? 4 : 0
+  // Stilsuit body
   ctx.fillStyle = COLORS.spiceBlue
-  ctx.fillRect(x - 6, y - 32, 12, 14)
-  ctx.fillStyle = COLORS.bone
+  ctx.fillRect(x - 5, y - 30 + crouch, 10, 14 - crouch)
+  // Hood with peak
   ctx.beginPath()
-  ctx.arc(x, y - 36, 6, 0, Math.PI * 2)
+  ctx.moveTo(x - 6, y - 30 + crouch)
+  ctx.lineTo(x, y - 38 + crouch)
+  ctx.lineTo(x + 6, y - 30 + crouch)
+  ctx.closePath()
   ctx.fill()
-  ctx.fillStyle = COLORS.deepBrown
-  ctx.fillRect(x - 4, y - 18, 3, 6)
-  ctx.fillRect(x + 1, y - 18, 3, 6)
+  // Head under hood
+  ctx.fillStyle = '#4a6a7a'
+  ctx.beginPath()
+  ctx.arc(x, y - 32 + crouch, 4, 0, Math.PI * 2)
+  ctx.fill()
+  // Blue-within-blue eyes
+  ctx.fillStyle = '#4488cc'
+  ctx.fillRect(x - 2, y - 33 + crouch, 2, 1)
+  ctx.fillRect(x + 1, y - 33 + crouch, 2, 1)
+  ctx.fillStyle = '#88bbff'
+  ctx.fillRect(x - 1, y - 33 + crouch, 1, 1)
+  ctx.fillRect(x + 2, y - 33 + crouch, 1, 1)
+  // Legs
+  ctx.fillStyle = COLORS.spiceBlue
+  ctx.fillRect(x - 3, y - 16, 3, crouched ? 5 : 8)
+  ctx.fillRect(x + 1, y - 16, 3, crouched ? 5 : 8)
 }
 
 export const level3 = {
@@ -478,11 +496,11 @@ export const level3 = {
       }
     }
 
-    // Player on worm (RIDE or CHARGING)
+    // Player on worm (RIDE or CHARGING) — crouched on worm
     if ((phase === PHASE.RIDE || phase === PHASE.CHARGING) && wSegs) {
       const pos = getPlayerWorldPos()
       if (pos.y < GROUND_Y + 10) {
-        drawPlayer(ctx, pos.x, pos.y)
+        drawPlayer(ctx, pos.x, pos.y, true)
       }
 
       // Charge indicator
