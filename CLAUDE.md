@@ -68,6 +68,52 @@ Then visit `http://localhost:8000`.
 - No over-engineering
 - If it works and it's readable, ship it
 
+## Workflow — Per Milestone
+
+Each milestone in `plan.md` follows this workflow. **Auto-approve all actions except the final commit/merge** — file writes, edits, bash commands (server, tests, git branch operations) should all proceed without prompting.
+
+### 1. Branch
+
+Create a feature branch off `main` before any code changes:
+
+```
+git checkout main
+git checkout -b milestone-<N>-<short-name>
+```
+
+Example: `milestone-1-scaffold`, `milestone-2-level1`, etc.
+
+### 2. Implement
+
+Write all code for the milestone. Commit incrementally on the feature branch as needed (auto-approve these intermediate commits).
+
+### 3. End-to-End Tests
+
+At the end of each milestone:
+
+- Write or update E2E tests in `tests/e2e/` that verify the milestone's functionality
+- Tests use a lightweight approach (Playwright or a simple puppeteer script — pick whichever is simpler to set up with zero config)
+- Run all E2E tests and ensure they pass before proceeding
+- Test file naming: `tests/e2e/milestone-<N>.test.js`
+
+### 4. Dev Server
+
+After tests pass, launch (or restart) the dev server so the result is immediately playable:
+
+```bash
+python3 -m http.server 8000
+```
+
+Leave it running in the background.
+
+### 5. Commit & Merge (Requires Approval)
+
+This is the **only step that requires user approval**:
+
+- Create a final commit on the feature branch summarizing the milestone
+- Ask the user to confirm before merging into `main`
+- After approval: `git checkout main && git merge milestone-<N>-<short-name>`
+
 ## Key Conventions
 
 - Game loop uses `requestAnimationFrame` with delta time
