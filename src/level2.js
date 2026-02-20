@@ -67,25 +67,32 @@ function spawnEnemy(type, size) {
   enemies.push({ x, y, type, size, vx: (dx / dist) * speed, vy: (dy / dist) * speed, alive: true })
 }
 
+// Fixed wave compositions: [deadly, edible] per wave
+// Loop 1: [2,3], [1,2], [1,2]
+// Loop 2: [3,3], [2,2], [1,2], [1,2]
+// Loop 3+: same as loop 2 + one extra [1,2] per additional loop
+function getWaveCompositions() {
+  if (game.loop === 1) return [[2,3], [1,2], [1,2]]
+  const waves = [[3,3], [2,2], [1,2], [1,2]]
+  for (let i = 2; i < game.loop; i++) waves.push([1,2])
+  return waves
+}
+
 function spawnWave() {
-  const count = L2.enemiesPerWaveBase + L2.enemiesPerWaveGrowth * (game.loop - 1)
+  const compositions = getWaveCompositions()
+  const comp = compositions[Math.min(wave, compositions.length - 1)]
+  const deadly = comp[0]
+  const edible = comp[1]
   const types = ['soldier', 'soldier', 'soldier', 'harvester', 'ornithopter']
-  // Deterministic large count: 2/3/4 in waves 1/2/3, +1 per loop for difficulty
-  const largeCount = Math.min(2 + wave + (game.loop - 1), count)
-  // Build size array and shuffle so large enemies are spread out
-  const sizes = []
-  for (let i = 0; i < count; i++) {
-    sizes.push(i < largeCount ? 'large' : 'small')
-  }
-  for (let i = sizes.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[sizes[i], sizes[j]] = [sizes[j], sizes[i]]
-  }
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < deadly; i++) {
     const type = types[Math.floor(Math.random() * types.length)]
-    spawnEnemy(type, sizes[i])
+    spawnEnemy(type, 'large')
   }
-  enemiesRemaining += count
+  for (let i = 0; i < edible; i++) {
+    const type = types[Math.floor(Math.random() * types.length)]
+    spawnEnemy(type, 'small')
+  }
+  enemiesRemaining += deadly + edible
 }
 
 function generateSandTiles() {
@@ -125,7 +132,7 @@ export const level2 = {
     worm = initWorm()
     enemies = []
     wave = 0
-    totalWaves = Math.min(L2.wavesBase + L2.wavesPerLoop * (game.loop - 1), L2.wavesMax)
+    totalWaves = getWaveCompositions().length
     waveTimer = 0
     enemiesRemaining = 0
     comboCount = 0

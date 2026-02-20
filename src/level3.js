@@ -505,9 +505,9 @@ export const level3 = {
 
       // Charge indicator
       if (phase === PHASE.CHARGING) {
-        const barW = 30, barH = 4
+        const barW = 40, barH = 4
         const bx = pos.x - barW / 2
-        const by = pos.y - 52
+        const by = pos.y - 54
 
         // Bar background
         ctx.fillStyle = 'rgba(0,0,0,0.5)'
@@ -518,10 +518,19 @@ export const level3 = {
         ctx.fillStyle = `rgb(${r},${g},50)`
         ctx.fillRect(bx, by, barW * chargeAmount, barH)
 
-        // Aim direction line
-        const aimLen = 20 + chargeAmount * 40
-        ctx.strokeStyle = 'rgba(255,255,255,0.7)'
-        ctx.lineWidth = 2
+        // Jump distance in pixels and estimated points
+        const jumpDist = chargeAmount * L3.jumpMaxPower
+        const pts = Math.floor(chargeAmount * MAX_JUMP_POINTS * game.loop)
+        ctx.fillStyle = 'rgba(232,220,200,0.8)'
+        ctx.font = '8px monospace'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`${Math.floor(jumpDist)}px  +${pts}pts`, pos.x, by - 7)
+
+        // Aim direction line — length matches actual jump distance
+        const aimLen = 20 + chargeAmount * 60
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)'
+        ctx.lineWidth = 1.5
         ctx.setLineDash([4, 4])
         ctx.beginPath()
         ctx.moveTo(pos.x, pos.y - 26)
@@ -529,10 +538,19 @@ export const level3 = {
         ctx.stroke()
         ctx.setLineDash([])
 
+        // Landing zone circle — shows where you'd land
+        const landX = pos.x + aimDX * aimLen
+        const landY = pos.y - 26 + aimDY * aimLen
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.arc(landX, landY, 6 + chargeAmount * 4, 0, Math.PI * 2)
+        ctx.stroke()
+
         // Aim dot
         ctx.fillStyle = 'white'
         ctx.beginPath()
-        ctx.arc(pos.x + aimDX * aimLen, pos.y - 26 + aimDY * aimLen, 3, 0, Math.PI * 2)
+        ctx.arc(landX, landY, 2, 0, Math.PI * 2)
         ctx.fill()
       }
     }
@@ -567,16 +585,16 @@ export const level3 = {
 
     // HUD prompts
     if (phase === PHASE.RIDE) {
-      drawText('←→ move on worm | ↑↓ step onto rock | Hold SPACE to charge jump',
-        GAME_WIDTH / 2, 20, { color: COLORS.deepBrown, size: 11 })
+      drawText('←→ move  |  ↑↓ walk onto rock  |  hold SPACE to jump further (more pts)',
+        GAME_WIDTH / 2, 20, { color: COLORS.bone, size: 10 })
       if (wDiveDelay <= 0 && wDiveProgress > 0.3) {
         const urgency = Math.sin(animTimer * 8) > 0 ? '#ff4444' : '#ff8800'
         drawText('WORM IS DIVING!', GAME_WIDTH / 2, 40, { color: urgency, size: 14 })
       }
     }
     if (phase === PHASE.CHARGING) {
-      drawText('AIM with ←→↑↓ — Release SPACE to jump!',
-        GAME_WIDTH / 2, 20, { color: '#ff8800', size: 13 })
+      drawText('aim with ←→↑↓  —  release SPACE to jump',
+        GAME_WIDTH / 2, 20, { color: COLORS.bone, size: 11 })
     }
 
     // Death overlay
