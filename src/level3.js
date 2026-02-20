@@ -20,7 +20,7 @@ const SEG_GAP = 25
 const ROCK_HIT = 24
 const WALK_RANGE = 50
 const MOVE_SPEED = 4
-const CHARGE_RATE = 0.8
+const CHARGE_RATE = 0.5
 const WALK_SPEED = 2.5
 const MAX_JUMP_POINTS = 500
 const AIM_ROTATE_SPEED = 3.0
@@ -34,7 +34,7 @@ let sandTiles
 let playerSegPos
 let playerPos
 let jumpArc
-let chargeAmount
+let chargeAmount, chargeTime
 let aimAngle
 let walkStart, walkTarget, walkProgress
 let landScore
@@ -243,6 +243,7 @@ export const level3 = {
     playerPos = null
     jumpArc = null
     chargeAmount = 0
+    chargeTime = 0
     aimAngle = -Math.PI / 2
     walkStart = null
     walkTarget = null
@@ -310,6 +311,7 @@ export const level3 = {
       // Start charging jump with SPACE
       if (isDown('Space') && !prevSpaceDown) {
         chargeAmount = 0
+        chargeTime = 0
         aimAngle = getWormPerpAngle()
         phase = PHASE.CHARGING
       }
@@ -326,7 +328,8 @@ export const level3 = {
 
     // === CHARGING ===
     if (phase === PHASE.CHARGING) {
-      chargeAmount = clamp(chargeAmount + CHARGE_RATE * dt, 0, 1)
+      chargeTime = clamp(chargeTime + CHARGE_RATE * dt, 0, 1)
+      chargeAmount = chargeTime * chargeTime  // ease-in: slow start, fast finish
 
       // Rotate aim with left/right
       if (isDown('ArrowLeft') || isDown('KeyA')) aimAngle -= AIM_ROTATE_SPEED * dt
