@@ -185,7 +185,7 @@ export const title = {
 
     // Credits — very subtle
     ctx.globalAlpha = 0.3
-    drawText('A  D U N E  A R C A D E  G A M E', GAME_WIDTH / 2, GAME_HEIGHT - 20, {
+    drawText('A N  O L D  M A N  W O R M  G A M E', GAME_WIDTH / 2, GAME_HEIGHT - 20, {
       color: COLORS.ochre,
       size: 8,
     })

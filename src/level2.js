@@ -279,7 +279,7 @@ export const level2 = {
         if (along > 0 && along < 800 && perp < 22) {
           e.alive = false
           enemiesRemaining--
-          addScore(50 * game.loop)
+          addScore(100 * game.loop)
           spawnParticles(e.x, e.y, 15, { color: '#88bbff', speedMax: 80 })
         }
       }
