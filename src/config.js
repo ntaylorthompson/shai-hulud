@@ -4,13 +4,20 @@ export const GAME_WIDTH = 640
 export const GAME_HEIGHT = 360
 
 export const COLORS = {
-  sand: '#FFBF00',
-  ochre: '#CC7722',
-  burntOrange: '#CC5500',
-  deepBrown: '#3B2200',
-  bone: '#F5F0DC',
-  spiceBlue: '#3498DB',
-  black: '#0a0800',
+  sand: '#d4b483',
+  ochre: '#a08050',
+  burntOrange: '#8b6030',
+  deepBrown: '#2c1a0a',
+  bone: '#e8dcc8',
+  spiceBlue: '#5a7a8a',
+  black: '#0f0a05',
+  skyTop: '#1a1208',
+  skyHorizon: '#c4a060',
+  harkonnen: '#1a1a1e',
+  harkAccent: '#4a1010',
+  wormSkin: '#8a7560',
+  wormMouth: '#5a4030',
+  wormTooth: '#c8b898',
 }
 
 export const STATES = {

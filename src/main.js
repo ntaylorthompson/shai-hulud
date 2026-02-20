@@ -11,7 +11,7 @@ import { level2 } from './level2.js'
 import { level3 } from './level3.js'
 import { gameover } from './gameover.js'
 import { updateHUD } from './hud.js'
-import { updateShake, applyShake, resetShake, updateFlash, renderFlash, updateParticles, renderParticles } from './effects.js'
+import { updateShake, applyShake, resetShake, updateFlash, renderFlash, updateParticles, renderParticles, updateDust, renderAtmosphere } from './effects.js'
 
 initRenderer()
 initInput()
@@ -23,7 +23,7 @@ registerState(STATES.LEVEL2, level2)
 registerState(STATES.LEVEL3, level3)
 registerState(STATES.GAMEOVER, gameover)
 
-switchState(STATES.LEVEL3) // TEMP: skip to level 3 for testing
+switchState(STATES.TITLE)
 
 let lastTime = 0
 
@@ -35,12 +35,14 @@ function loop(time) {
   updateShake(dt)
   updateFlash(dt)
   updateParticles(dt)
+  updateDust(dt)
 
   applyShake()
   updateState(dt)
   renderState()
   renderParticles()
   renderFlash()
+  renderAtmosphere(time)
   resetShake()
 
   clearFrame()

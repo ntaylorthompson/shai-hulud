@@ -309,17 +309,19 @@ export const level1 = {
   render() {
     const ctx = getCtx()
 
-    // Sky gradient
-    clear(COLORS.deepBrown)
+    // Sky gradient — dark top to hazy bright horizon
+    clear(COLORS.black)
     const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT)
-    grad.addColorStop(0, '#2a1800')
-    grad.addColorStop(0.6, COLORS.ochre)
-    grad.addColorStop(1, COLORS.sand)
+    grad.addColorStop(0, COLORS.skyTop)
+    grad.addColorStop(0.45, '#3a2810')
+    grad.addColorStop(0.7, COLORS.skyHorizon)
+    grad.addColorStop(0.85, COLORS.sand)
+    grad.addColorStop(1, COLORS.ochre)
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    // Far dunes
-    ctx.fillStyle = '#9a6020'
+    // Far dune silhouettes — dark against bright horizon
+    ctx.fillStyle = '#5a4028'
     for (const d of dunesFar) {
       const x = ((d.x - scrollOffset * 0.3) % (GAME_WIDTH + d.w) + GAME_WIDTH + d.w) % (GAME_WIDTH + d.w) - d.w / 2
       ctx.beginPath()
@@ -327,8 +329,8 @@ export const level1 = {
       ctx.fill()
     }
 
-    // Near dunes
-    ctx.fillStyle = COLORS.ochre
+    // Near dune silhouettes
+    ctx.fillStyle = '#6a5038'
     for (const d of dunesNear) {
       const x = ((d.x - scrollOffset * 0.6) % (GAME_WIDTH + d.w) + GAME_WIDTH + d.w) % (GAME_WIDTH + d.w) - d.w / 2
       ctx.beginPath()
@@ -336,9 +338,12 @@ export const level1 = {
       ctx.fill()
     }
 
-    // Ground
-    ctx.fillStyle = COLORS.sand
+    // Ground — subtle texture
+    ctx.fillStyle = COLORS.ochre
     ctx.fillRect(0, GROUND_Y + 15, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - 15)
+    // Ground highlight line at horizon
+    ctx.fillStyle = COLORS.sand
+    ctx.fillRect(0, GROUND_Y + 14, GAME_WIDTH, 2)
 
     const showWorm = (wActive || phase === PHASE.QTE || phase === PHASE.SUCCESS) && wSegs.length
 

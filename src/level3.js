@@ -340,14 +340,22 @@ export const level3 = {
   render() {
     const ctx = getCtx()
 
-    // Desert background
-    clear(COLORS.sand)
+    // Sky — darker dusk tone (worm diving at dusk)
+    clear(COLORS.black)
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT)
+    skyGrad.addColorStop(0, '#150e04')
+    skyGrad.addColorStop(0.4, '#2a1c0c')
+    skyGrad.addColorStop(0.7, '#7a6040')
+    skyGrad.addColorStop(0.85, COLORS.ochre)
+    skyGrad.addColorStop(1, '#6a5030')
+    ctx.fillStyle = skyGrad
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    // Ground
-    ctx.fillStyle = '#c4960a'
-    ctx.fillRect(0, GROUND_Y + 10, GAME_WIDTH, 3)
-    ctx.fillStyle = '#b08800'
-    ctx.fillRect(0, GROUND_Y + 13, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - 13)
+    // Ground line + below-ground
+    ctx.fillStyle = COLORS.sand
+    ctx.fillRect(0, GROUND_Y + 10, GAME_WIDTH, 2)
+    ctx.fillStyle = COLORS.ochre
+    ctx.fillRect(0, GROUND_Y + 12, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - 12)
 
     // Rocks — highlight walkable ones green
     const ppos = (phase === PHASE.RIDE || phase === PHASE.CHARGING) && wSegs

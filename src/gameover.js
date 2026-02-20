@@ -33,19 +33,19 @@ export const gameover = {
   render() {
     const ctx = getCtx()
 
-    // Dark red gradient
-    clear('#1a0500')
+    // Near-black with subtle warm gradient — somber
+    clear('#0a0704')
     const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT)
-    grad.addColorStop(0, '#0a0000')
-    grad.addColorStop(0.5, '#1a0500')
-    grad.addColorStop(1, '#2a0a00')
+    grad.addColorStop(0, '#050302')
+    grad.addColorStop(0.5, '#0f0a05')
+    grad.addColorStop(1, '#1a1008')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
     ctx.globalAlpha = fadeIn
 
     drawText('GAME OVER', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, {
-      color: COLORS.burntOrange,
+      color: COLORS.sand,
       size: 48,
     })
 

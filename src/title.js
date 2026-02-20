@@ -82,21 +82,38 @@ export const title = {
   render() {
     const ctx = getCtx()
 
-    // Desert gradient background
-    clear(COLORS.deepBrown)
+    // Deep gradient with distant horizon
+    clear(COLORS.black)
     const grad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT)
-    grad.addColorStop(0, '#1a0f00')
-    grad.addColorStop(0.5, '#3B2200')
-    grad.addColorStop(1, '#5a3800')
+    grad.addColorStop(0, '#0a0704')
+    grad.addColorStop(0.55, '#1a1208')
+    grad.addColorStop(0.72, '#3a2810')
+    grad.addColorStop(0.78, '#7a6040')
+    grad.addColorStop(0.82, '#3a2810')
+    grad.addColorStop(1, '#1a1208')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-    // Animated sand particles
-    ctx.fillStyle = 'rgba(255,191,0,0.3)'
-    for (let i = 0; i < 20; i++) {
-      const x = ((i * 97 + timer * 30) % GAME_WIDTH)
-      const y = ((i * 53 + timer * 15 + Math.sin(i + timer) * 20) % GAME_HEIGHT)
-      ctx.fillRect(x, y, 2, 2)
+    // Distant sun/moon — single bright point on horizon
+    const sunX = GAME_WIDTH * 0.5 + Math.sin(timer * 0.1) * 20
+    const sunY = GAME_HEIGHT * 0.74
+    const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 60)
+    sunGrad.addColorStop(0, 'rgba(232, 200, 140, 0.6)')
+    sunGrad.addColorStop(0.3, 'rgba(200, 160, 90, 0.2)')
+    sunGrad.addColorStop(1, 'rgba(200, 160, 90, 0)')
+    ctx.fillStyle = sunGrad
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+    ctx.fillStyle = '#e8c88c'
+    ctx.beginPath()
+    ctx.arc(sunX, sunY, 3, 0, Math.PI * 2)
+    ctx.fill()
+
+    // Sparse dust motes
+    ctx.fillStyle = 'rgba(232, 220, 200, 0.15)'
+    for (let i = 0; i < 15; i++) {
+      const x = ((i * 97 + timer * 12) % GAME_WIDTH)
+      const y = ((i * 53 + timer * 6 + Math.sin(i + timer * 0.5) * 20) % GAME_HEIGHT)
+      ctx.fillRect(x, y, 1, 1)
     }
 
     // Pixel art title

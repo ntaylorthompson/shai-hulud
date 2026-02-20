@@ -94,7 +94,7 @@ function generateSandTiles() {
       x: Math.random() * W,
       y: Math.random() * H,
       r: 2 + Math.random() * 4,
-      c: Math.random() > 0.5 ? '#b8860b' : '#daa520',
+      c: Math.random() > 0.5 ? '#8a7050' : '#9a8060',
     })
   }
   return tiles
@@ -344,14 +344,18 @@ export const level2 = {
   render() {
     const ctx = getCtx()
 
-    // Desert background
-    clear(COLORS.sand)
+    // Desert background — muted tan
+    clear(COLORS.ochre)
 
-    // Sand texture tiles
+    // Sand ripple texture — low contrast offset circles
     for (const t of sandTiles) {
-      ctx.fillStyle = t.c
+      ctx.fillStyle = 'rgba(160, 128, 80, 0.25)'
       ctx.beginPath()
       ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = 'rgba(140, 110, 60, 0.15)'
+      ctx.beginPath()
+      ctx.arc(t.x + 2, t.y + 1, t.r * 0.7, 0, Math.PI * 2)
       ctx.fill()
     }
 
