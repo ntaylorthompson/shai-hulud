@@ -25,7 +25,7 @@ test.describe('Milestone 4 — Level 3: Dismount the Worm', () => {
     expect(colorCount).toBeGreaterThan(5)
   })
 
-  test('cursor moves with arrow keys', async ({ page }) => {
+  test('worm moves across screen while diving', async ({ page }) => {
     await page.goto('/')
     await page.waitForTimeout(200)
 
@@ -44,13 +44,8 @@ test.describe('Milestone 4 — Level 3: Dismount the Worm', () => {
       return hash
     })
 
-    // Move cursor
-    await page.keyboard.down('ArrowRight')
-    await page.keyboard.down('ArrowDown')
-    await page.waitForTimeout(500)
-    await page.keyboard.up('ArrowRight')
-    await page.keyboard.up('ArrowDown')
-    await page.waitForTimeout(200)
+    // Wait for worm to move onto screen
+    await page.waitForTimeout(2000)
 
     const after = await page.evaluate(() => {
       const ctx = document.getElementById('game').getContext('2d')
@@ -60,6 +55,7 @@ test.describe('Milestone 4 — Level 3: Dismount the Worm', () => {
       return hash
     })
 
+    // Canvas should change as worm traverses and dives
     expect(after).not.toBe(before)
   })
 

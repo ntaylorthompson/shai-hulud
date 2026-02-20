@@ -32,8 +32,9 @@ export const L1 = {
   groundSpeed: 60,
 
   // Player
-  playerX: 100,
+  playerStartX: 100,
   playerGroundY: 280,
+  playerSpeed: 200,
   jumpVelocity: -400,
   gravity: 900,
 
@@ -55,7 +56,7 @@ export const L1 = {
   qteTimeBase: 3.5,          // seconds to complete QTE at loop 1 (generous start)
   qteTimeMin: 1.2,
   qteTimeDecay: 0.25,
-  qtePool: ['KeyA', 'KeyS', 'KeyD', 'KeyW', 'KeyJ', 'KeyK', 'KeyL'],
+  qtePool: ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'],
 
   // Death pause
   deathPause: 1.5,

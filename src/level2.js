@@ -5,46 +5,84 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS, L2 } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
 import { isDown } from './input.js'
 import { switchState } from './state.js'
-import { game, addScore } from './game.js'
+import { game, addScore, loseLife } from './game.js'
 import { renderHUD } from './hud.js'
-import { playMusic, sfxEat, sfxSuccess } from './audio.js'
-import { triggerShake, spawnParticles, clearParticles } from './effects.js'
+import { playMusic, sfxEat, sfxSuccess, sfxDeath } from './audio.js'
+import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
+
+const W = GAME_WIDTH
+const H = GAME_HEIGHT
+const DANGER_RADIUS = 80       // proximity range for danger bonus / close call
+const CLOSE_CALL_MIN = 2       // minimum dangerous enemies nearby for close call
+const CLOSE_CALL_ESCAPE = 120  // distance to escape to trigger close call
 
 let worm          // { segments: [{x,y}], angle, speed }
-let enemies       // [{x, y, type, vx, vy, alive}]
+let enemies       // [{x, y, type, size, vx, vy, alive}]
 let wave, totalWaves, waveTimer, enemiesRemaining
 let comboCount, comboTimer
 let sandTiles     // background texture
-let phase         // 'play' | 'success'
+let phase         // 'play' | 'success' | 'death'
 let phaseTimer
+let deathMessage
+let closeCallTimer    // countdown to display "CLOSE CALL"
+let closeCallTracking // true when near 2+ dangerous enemies
+let savedWorm, savedEnemies, savedWave, savedWaveTimer  // persist state on death
 
-function spawnEnemy(type) {
-  // Spawn from edges
+// Shortest distance accounting for screen wrap
+function wrapDist(ax, ay, bx, by) {
+  let dx = Math.abs(ax - bx)
+  let dy = Math.abs(ay - by)
+  if (dx > W / 2) dx = W - dx
+  if (dy > H / 2) dy = H - dy
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+// Shortest delta accounting for wrap
+function wrapDelta(a, b, size) {
+  let d = a - b
+  if (d > size / 2) d -= size
+  if (d < -size / 2) d += size
+  return d
+}
+
+function spawnEnemy(type, size) {
   const edge = Math.floor(Math.random() * 4)
   let x, y
-  if (edge === 0) { x = Math.random() * GAME_WIDTH; y = -20 }
-  else if (edge === 1) { x = GAME_WIDTH + 20; y = Math.random() * GAME_HEIGHT }
-  else if (edge === 2) { x = Math.random() * GAME_WIDTH; y = GAME_HEIGHT + 20 }
-  else { x = -20; y = Math.random() * GAME_HEIGHT }
+  if (edge === 0) { x = Math.random() * W; y = -20 }
+  else if (edge === 1) { x = W + 20; y = Math.random() * H }
+  else if (edge === 2) { x = Math.random() * W; y = H + 20 }
+  else { x = -20; y = Math.random() * H }
 
   const speedMult = 1 + L2.enemySpeedMultPerLoop * (game.loop - 1)
   let speed
   if (type === 'soldier') speed = L2.soldierSpeed * speedMult
   else if (type === 'harvester') speed = L2.harvesterSpeed * speedMult
   else speed = L2.ornithopterSpeed * speedMult
+  if (size === 'large') speed *= 0.7
 
-  // Move toward center initially
-  const dx = GAME_WIDTH / 2 - x
-  const dy = GAME_HEIGHT / 2 - y
+  const dx = W / 2 - x
+  const dy = H / 2 - y
   const dist = Math.sqrt(dx * dx + dy * dy) || 1
-  enemies.push({ x, y, type, vx: (dx / dist) * speed, vy: (dy / dist) * speed, alive: true })
+  enemies.push({ x, y, type, size, vx: (dx / dist) * speed, vy: (dy / dist) * speed, alive: true })
 }
 
 function spawnWave() {
   const count = L2.enemiesPerWaveBase + L2.enemiesPerWaveGrowth * (game.loop - 1)
   const types = ['soldier', 'soldier', 'soldier', 'harvester', 'ornithopter']
+  // Deterministic large count: 2/3/4 in waves 1/2/3, +1 per loop for difficulty
+  const largeCount = Math.min(2 + wave + (game.loop - 1), count)
+  // Build size array and shuffle so large enemies are spread out
+  const sizes = []
   for (let i = 0; i < count; i++) {
-    spawnEnemy(types[Math.floor(Math.random() * types.length)])
+    sizes.push(i < largeCount ? 'large' : 'small')
+  }
+  for (let i = sizes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[sizes[i], sizes[j]] = [sizes[j], sizes[i]]
+  }
+  for (let i = 0; i < count; i++) {
+    const type = types[Math.floor(Math.random() * types.length)]
+    spawnEnemy(type, sizes[i])
   }
   enemiesRemaining += count
 }
@@ -53,8 +91,8 @@ function generateSandTiles() {
   const tiles = []
   for (let i = 0; i < 60; i++) {
     tiles.push({
-      x: Math.random() * GAME_WIDTH,
-      y: Math.random() * GAME_HEIGHT,
+      x: Math.random() * W,
+      y: Math.random() * H,
       r: 2 + Math.random() * 4,
       c: Math.random() > 0.5 ? '#b8860b' : '#daa520',
     })
@@ -62,15 +100,28 @@ function generateSandTiles() {
   return tiles
 }
 
+function initWorm() {
+  const segCount = Math.min(L2.wormBaseLength + L2.wormGrowthPerLoop * (game.loop - 1), L2.wormMaxLength)
+  const segments = []
+  for (let i = 0; i < segCount; i++) {
+    segments.push({ x: W / 2 - i * L2.wormSegmentSize, y: H / 2 })
+  }
+  return { segments, angle: 0, speed: L2.wormSpeed }
+}
+
+// Count large enemies within DANGER_RADIUS of a point
+function countNearbyDanger(x, y) {
+  let count = 0
+  for (const e of enemies) {
+    if (!e.alive || e.size !== 'large') continue
+    if (wrapDist(x, y, e.x, e.y) < DANGER_RADIUS) count++
+  }
+  return count
+}
+
 export const level2 = {
   enter() {
-    const segCount = Math.min(L2.wormBaseLength + L2.wormGrowthPerLoop * (game.loop - 1), L2.wormMaxLength)
-    const segments = []
-    for (let i = 0; i < segCount; i++) {
-      segments.push({ x: GAME_WIDTH / 2 - i * L2.wormSegmentSize, y: GAME_HEIGHT / 2 })
-    }
-    worm = { segments, angle: 0, speed: L2.wormSpeed }
-
+    worm = initWorm()
     enemies = []
     wave = 0
     totalWaves = Math.min(L2.wavesBase + L2.wavesPerLoop * (game.loop - 1), L2.wavesMax)
@@ -81,8 +132,12 @@ export const level2 = {
     sandTiles = generateSandTiles()
     phase = 'play'
     phaseTimer = 0
+    deathMessage = ''
+    closeCallTimer = 0
+    closeCallTracking = false
+    savedWorm = null
+    savedEnemies = null
 
-    // Spawn first wave immediately
     spawnWave()
     wave = 1
     playMusic('level2')
@@ -97,6 +152,28 @@ export const level2 = {
       }
       return
     }
+
+    if (phase === 'death') {
+      phaseTimer += dt
+      if (phaseTimer >= 1.5) {
+        if (game.lives >= 0) {
+          // Resume with saved state instead of full restart
+          worm = savedWorm || initWorm()
+          if (savedEnemies) enemies = savedEnemies
+          wave = savedWave || wave
+          waveTimer = savedWaveTimer || 0
+          phase = 'play'
+          closeCallTracking = false
+          closeCallTimer = 0
+        } else {
+          switchState('gameover')
+        }
+      }
+      return
+    }
+
+    // Close call timer display
+    if (closeCallTimer > 0) closeCallTimer -= dt
 
     // Steering
     const segCount = worm.segments.length
@@ -117,23 +194,28 @@ export const level2 = {
       spawnParticles(tail.x, tail.y, 1, { color: '#d4a030', speedMax: 20, life: 0.4, sizeMax: 3 })
     }
 
-    // Wrap around screen
-    if (head.x < -20) head.x = GAME_WIDTH + 20
-    if (head.x > GAME_WIDTH + 20) head.x = -20
-    if (head.y < -20) head.y = GAME_HEIGHT + 20
-    if (head.y > GAME_HEIGHT + 20) head.y = -20
+    // Wrap head around screen (seamless)
+    if (head.x < 0) head.x += W
+    if (head.x > W) head.x -= W
+    if (head.y < 0) head.y += H
+    if (head.y > H) head.y -= H
 
-    // Body follows head
+    // Body follows head using wrap-aware deltas
     for (let i = 1; i < worm.segments.length; i++) {
       const prev = worm.segments[i - 1]
       const seg = worm.segments[i]
-      const dx = prev.x - seg.x
-      const dy = prev.y - seg.y
+      const dx = wrapDelta(prev.x, seg.x, W)
+      const dy = wrapDelta(prev.y, seg.y, H)
       const dist = Math.sqrt(dx * dx + dy * dy)
       if (dist > L2.wormSegmentSize) {
         const ratio = L2.wormSegmentSize / dist
         seg.x = prev.x - dx * ratio
         seg.y = prev.y - dy * ratio
+        // Keep in bounds
+        if (seg.x < 0) seg.x += W
+        if (seg.x > W) seg.x -= W
+        if (seg.y < 0) seg.y += H
+        if (seg.y > H) seg.y -= H
       }
     }
 
@@ -143,50 +225,96 @@ export const level2 = {
       if (comboTimer <= 0) comboCount = 0
     }
 
+    // Close call tracking — are we near 2+ large enemies?
+    const nearbyDanger = countNearbyDanger(head.x, head.y)
+    if (nearbyDanger >= CLOSE_CALL_MIN) {
+      closeCallTracking = true
+    } else if (closeCallTracking) {
+      // Just escaped — award close call bonus
+      closeCallTracking = false
+      const bonus = 50 * nearbyDanger  // small but satisfying
+      addScore(bonus)
+      closeCallTimer = 1.2
+      triggerFlash('#ffff00', 0.15)
+    }
+
     // Enemy movement + collision
     for (const e of enemies) {
       if (!e.alive) continue
 
-      // Soldiers flee from worm head
+      // Soldiers flee from worm head (wrap-aware)
       if (e.type === 'soldier') {
-        const dx = e.x - head.x
-        const dy = e.y - head.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist < 120) {
+        const d = wrapDist(e.x, e.y, head.x, head.y)
+        if (d < 120) {
+          const dx = wrapDelta(e.x, head.x, W)
+          const dy = wrapDelta(e.y, head.y, H)
           const speedMult = 1 + L2.enemySpeedMultPerLoop * (game.loop - 1)
           const fleeSpeed = L2.soldierSpeed * speedMult * 1.5
-          e.vx = (dx / dist) * fleeSpeed
-          e.vy = (dy / dist) * fleeSpeed
+          e.vx = (dx / d) * fleeSpeed
+          e.vy = (dy / d) * fleeSpeed
         }
       }
 
       e.x += e.vx * dt
       e.y += e.vy * dt
 
-      // Bounce off edges (except soldiers fleeing off-screen — let them go but respawn)
-      if (e.x < 0 || e.x > GAME_WIDTH) e.vx *= -1
-      if (e.y < 0 || e.y > GAME_HEIGHT) e.vy *= -1
-      e.x = Math.max(-30, Math.min(GAME_WIDTH + 30, e.x))
-      e.y = Math.max(-30, Math.min(GAME_HEIGHT + 30, e.y))
+      // Wrap around screen edges
+      if (e.x < 0) e.x += W
+      if (e.x > W) e.x -= W
+      if (e.y < 0) e.y += H
+      if (e.y > H) e.y -= H
 
-      // Collision with worm head (mouth)
-      const cdx = head.x - e.x
-      const cdy = head.y - e.y
-      const cdist = Math.sqrt(cdx * cdx + cdy * cdy)
-      const eatRadius = L2.wormSegmentSize * 0.8
-      if (cdist < eatRadius) {
-        e.alive = false
-        enemiesRemaining--
-        sfxEat()
-        spawnParticles(e.x, e.y, 10, { color: COLORS.burntOrange, speedMax: 60 })
+      // Collision with worm head (mouth) — wrap-aware
+      const cdist = wrapDist(head.x, head.y, e.x, e.y)
+      const hitRadius = e.size === 'large' ? L2.wormSegmentSize * 1.2 : L2.wormSegmentSize
+      if (cdist < hitRadius) {
+        if (e.size === 'large') {
+          // Save state before death so we can resume
+          savedWorm = { segments: worm.segments.map(s => ({ ...s })), angle: worm.angle, speed: worm.speed }
+          // Respawn worm at center for saved state
+          const sw = initWorm()
+          savedWorm = sw
+          savedEnemies = enemies.filter(en => en !== e && en.alive).map(en => ({ ...en }))
+          savedWave = wave
+          savedWaveTimer = waveTimer
 
-        // Score with combo
-        comboCount++
-        comboTimer = L2.comboWindow
-        const basePoints = e.type === 'soldier' ? L2.soldierPoints :
-                          e.type === 'harvester' ? L2.harvesterPoints : L2.ornithopterPoints
-        const multiplier = 1 + (comboCount - 1) * L2.comboMultiplier
-        addScore(Math.round(basePoints * multiplier))
+          e.alive = false
+          enemiesRemaining--
+          loseLife()
+          sfxDeath()
+          triggerShake(10, 0.5)
+          triggerFlash('#ff0000', 0.3)
+          spawnParticles(head.x, head.y, 20, { color: '#ff4444', speedMax: 100 })
+          deathMessage = e.type === 'harvester' ? 'CRUSHED BY HARVESTER!' :
+                         e.type === 'ornithopter' ? 'SHOT DOWN!' : 'AMBUSHED!'
+          phase = 'death'
+          phaseTimer = 0
+          return
+        } else {
+          // Small enemy — eat it
+          e.alive = false
+          enemiesRemaining--
+          sfxEat()
+          spawnParticles(e.x, e.y, 10, { color: COLORS.burntOrange, speedMax: 60 })
+
+          // Score with combo
+          comboCount++
+          comboTimer = L2.comboWindow
+          const basePoints = e.type === 'soldier' ? L2.soldierPoints :
+                            e.type === 'harvester' ? L2.harvesterPoints : L2.ornithopterPoints
+          const multiplier = 1 + (comboCount - 1) * L2.comboMultiplier
+
+          // Danger proximity bonus: 4x per nearby large enemy
+          const nearDanger = countNearbyDanger(e.x, e.y)
+          const dangerMultiplier = nearDanger > 0 ? Math.pow(4, nearDanger) : 1
+
+          const points = Math.round(basePoints * multiplier * dangerMultiplier)
+          addScore(points)
+
+          if (nearDanger > 0) {
+            triggerFlash('#ff8800', 0.1)
+          }
+        }
       }
     }
 
@@ -194,15 +322,18 @@ export const level2 = {
     enemies = enemies.filter(e => e.alive)
 
     // Wave spawning
+    const smallRemaining = enemies.filter(e => e.alive && e.size === 'small').length
     waveTimer += dt
-    if (wave < totalWaves && waveTimer >= L2.waveInterval) {
+    // Spawn next wave on timer, or immediately if all small enemies are already eaten
+    if (wave < totalWaves && (waveTimer >= L2.waveInterval || smallRemaining === 0)) {
       waveTimer = 0
       spawnWave()
       wave++
     }
 
-    // Win condition: all waves spawned and all enemies eaten
-    if (wave >= totalWaves && enemies.length === 0) {
+    // Win condition: all waves spawned and all edible (small) enemies eaten
+    const smallNow = enemies.filter(e => e.alive && e.size === 'small').length
+    if (wave >= totalWaves && smallNow === 0) {
       phase = 'success'
       phaseTimer = 0
       sfxSuccess()
@@ -227,92 +358,192 @@ export const level2 = {
     // Enemies
     for (const e of enemies) {
       if (!e.alive) continue
-      if (e.type === 'soldier') {
-        // Small red figure
-        ctx.fillStyle = '#8b0000'
-        ctx.fillRect(e.x - 4, e.y - 6, 8, 12)
-        ctx.fillStyle = '#cc0000'
-        ctx.fillRect(e.x - 3, e.y - 9, 6, 4)
-      } else if (e.type === 'harvester') {
-        // Large boxy machine
-        ctx.fillStyle = '#555'
-        ctx.fillRect(e.x - 12, e.y - 8, 24, 16)
-        ctx.fillStyle = '#888'
-        ctx.fillRect(e.x - 10, e.y - 6, 20, 12)
-        // Tracks
-        ctx.fillStyle = '#333'
-        ctx.fillRect(e.x - 13, e.y + 6, 26, 3)
-      } else {
-        // Ornithopter — diamond shape
-        ctx.fillStyle = '#666'
-        ctx.beginPath()
-        ctx.moveTo(e.x, e.y - 10)
-        ctx.lineTo(e.x + 14, e.y)
-        ctx.lineTo(e.x, e.y + 6)
-        ctx.lineTo(e.x - 14, e.y)
-        ctx.closePath()
-        ctx.fill()
-        // Wings
-        ctx.fillStyle = '#999'
-        ctx.fillRect(e.x - 16, e.y - 2, 32, 4)
-      }
+      drawEnemy(ctx, e)
     }
 
-    // Worm body (draw from tail to head)
+    // Worm body (draw from tail to head) — with wrap rendering
     for (let i = worm.segments.length - 1; i >= 0; i--) {
       const seg = worm.segments[i]
       const radius = L2.wormSegmentSize / 2 - i * 0.3
+      const r = Math.max(radius, 5)
       ctx.fillStyle = i === 0 ? COLORS.deepBrown : COLORS.burntOrange
-      ctx.beginPath()
-      ctx.arc(seg.x, seg.y, Math.max(radius, 5), 0, Math.PI * 2)
-      ctx.fill()
+      drawWrapped(ctx, seg.x, seg.y, r, (cx, cy) => {
+        ctx.beginPath()
+        ctx.arc(cx, cy, r, 0, Math.PI * 2)
+        ctx.fill()
+      })
     }
 
-    // Worm mouth (head)
+    // Worm mouth (head) — with wrap rendering
     const head = worm.segments[0]
+    const mouthX = head.x + Math.cos(worm.angle) * 8
+    const mouthY = head.y + Math.sin(worm.angle) * 8
     ctx.fillStyle = COLORS.deepBrown
-    ctx.beginPath()
-    ctx.arc(head.x + Math.cos(worm.angle) * 8, head.y + Math.sin(worm.angle) * 8, 8, 0, Math.PI * 2)
-    ctx.fill()
+    drawWrapped(ctx, mouthX, mouthY, 8, (cx, cy) => {
+      ctx.beginPath()
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2)
+      ctx.fill()
+    })
     // Teeth
     ctx.fillStyle = COLORS.bone
     for (let i = 0; i < 4; i++) {
       const a = worm.angle + (i - 1.5) * 0.5
-      ctx.beginPath()
-      ctx.arc(head.x + Math.cos(a) * 14, head.y + Math.sin(a) * 14, 2, 0, Math.PI * 2)
-      ctx.fill()
+      const tx = head.x + Math.cos(a) * 14
+      const ty = head.y + Math.sin(a) * 14
+      drawWrapped(ctx, tx, ty, 2, (cx, cy) => {
+        ctx.beginPath()
+        ctx.arc(cx, cy, 2, 0, Math.PI * 2)
+        ctx.fill()
+      })
+    }
+
+    // Rider (tiny person on second segment)
+    if (worm.segments.length > 1) {
+      const rideSeg = worm.segments[1]
+      drawWrapped(ctx, rideSeg.x, rideSeg.y, 15, (cx, cy) => {
+        ctx.fillStyle = COLORS.spiceBlue
+        ctx.fillRect(cx - 3, cy - 10, 6, 8)
+        ctx.fillStyle = COLORS.bone
+        ctx.beginPath()
+        ctx.arc(cx, cy - 13, 3, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = COLORS.deepBrown
+        ctx.fillRect(cx - 5, cy - 2, 3, 5)
+        ctx.fillRect(cx + 2, cy - 2, 3, 5)
+      })
     }
 
     // Combo display
     if (comboCount > 1 && comboTimer > 0) {
-      drawText(`${comboCount}x COMBO!`, GAME_WIDTH / 2, GAME_HEIGHT - 40, {
-        color: '#ff4444',
-        size: 20,
-      })
+      drawText(`${comboCount}x COMBO!`, W / 2, H - 40, { color: '#ff4444', size: 20 })
+    }
+
+    // Close call display
+    if (closeCallTimer > 0) {
+      drawText('CLOSE CALL!', W / 2, H - 60, { color: '#ffff00', size: 18 })
     }
 
     // Wave counter
-    drawText(`Wave ${Math.min(wave, totalWaves)}/${totalWaves}`, GAME_WIDTH / 2, 20, {
-      color: COLORS.deepBrown,
-      size: 14,
-    })
+    drawText(`Wave ${Math.min(wave, totalWaves)}/${totalWaves}`, W / 2, 20, { color: COLORS.deepBrown, size: 14 })
 
-    // Enemies remaining
-    drawText(`Enemies: ${enemies.length}`, GAME_WIDTH / 2, 38, {
-      color: COLORS.deepBrown,
-      size: 12,
-    })
+    // Edible enemies remaining
+    const edible = enemies.filter(e => e.alive && e.size === 'small').length
+    drawText(`Prey: ${edible}`, W / 2, 38, { color: COLORS.deepBrown, size: 12 })
 
     // Success
     if (phase === 'success') {
       ctx.fillStyle = 'rgba(0,0,0,0.4)'
-      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
-      drawText('ALL HARKONNENS DEVOURED!', GAME_WIDTH / 2, GAME_HEIGHT / 2, {
-        color: '#44ff44',
-        size: 24,
-      })
+      ctx.fillRect(0, 0, W, H)
+      drawText('ALL HARKONNENS DEVOURED!', W / 2, H / 2, { color: '#44ff44', size: 24 })
+    }
+
+    // Death overlay
+    if (phase === 'death') {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'
+      ctx.fillRect(0, 0, W, H)
+      drawText(deathMessage, W / 2, H / 2 - 20, { color: '#ff4444', size: 28 })
+      drawText(`Lives: ${game.lives}`, W / 2, H / 2 + 20, { color: COLORS.bone, size: 16 })
     }
 
     renderHUD()
   },
+}
+
+// Draw something at position, and also at wrapped positions if near an edge
+function drawWrapped(ctx, x, y, radius, drawFn) {
+  drawFn(x, y)
+  // If near an edge, draw ghost on opposite side
+  if (x < radius) drawFn(x + W, y)
+  if (x > W - radius) drawFn(x - W, y)
+  if (y < radius) drawFn(x, y + H)
+  if (y > H - radius) drawFn(x, y - H)
+  // Corners
+  if (x < radius && y < radius) drawFn(x + W, y + H)
+  if (x > W - radius && y < radius) drawFn(x - W, y + H)
+  if (x < radius && y > H - radius) drawFn(x + W, y - H)
+  if (x > W - radius && y > H - radius) drawFn(x - W, y - H)
+}
+
+function drawEnemy(ctx, e) {
+  const isLarge = e.size === 'large'
+
+  if (e.type === 'soldier') {
+    if (isLarge) {
+      ctx.fillStyle = '#ff2222'
+      ctx.beginPath()
+      ctx.arc(e.x, e.y, 14, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#8b0000'
+      ctx.fillRect(e.x - 8, e.y - 10, 16, 20)
+      ctx.fillStyle = '#cc0000'
+      ctx.fillRect(e.x - 6, e.y - 14, 12, 6)
+      ctx.strokeStyle = '#ff0'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(e.x - 10, e.y - 16); ctx.lineTo(e.x + 10, e.y - 16)
+      ctx.stroke()
+    } else {
+      // Bigger small soldier — visible body + head
+      ctx.fillStyle = '#8b0000'
+      ctx.fillRect(e.x - 5, e.y - 7, 10, 14)
+      ctx.fillStyle = '#cc0000'
+      ctx.fillRect(e.x - 4, e.y - 12, 8, 6)
+      // Arms
+      ctx.fillStyle = '#8b0000'
+      ctx.fillRect(e.x - 8, e.y - 4, 3, 8)
+      ctx.fillRect(e.x + 5, e.y - 4, 3, 8)
+    }
+  } else if (e.type === 'harvester') {
+    if (isLarge) {
+      ctx.fillStyle = '#ff4400'
+      ctx.beginPath()
+      ctx.arc(e.x, e.y, 18, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#444'
+      ctx.fillRect(e.x - 16, e.y - 12, 32, 24)
+      ctx.fillStyle = '#777'
+      ctx.fillRect(e.x - 14, e.y - 10, 28, 20)
+      ctx.fillStyle = '#222'
+      ctx.fillRect(e.x - 17, e.y + 10, 34, 4)
+      ctx.fillStyle = '#ff0'
+      ctx.fillRect(e.x - 14, e.y - 12, 28, 3)
+    } else {
+      // Bigger small harvester
+      ctx.fillStyle = '#555'
+      ctx.fillRect(e.x - 10, e.y - 7, 20, 14)
+      ctx.fillStyle = '#888'
+      ctx.fillRect(e.x - 8, e.y - 5, 16, 10)
+      ctx.fillStyle = '#333'
+      ctx.fillRect(e.x - 11, e.y + 5, 22, 3)
+    }
+  } else {
+    if (isLarge) {
+      ctx.fillStyle = '#ff2222'
+      ctx.beginPath()
+      ctx.arc(e.x, e.y, 16, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = '#555'
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y - 14)
+      ctx.lineTo(e.x + 20, e.y)
+      ctx.lineTo(e.x, e.y + 10)
+      ctx.lineTo(e.x - 20, e.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#888'
+      ctx.fillRect(e.x - 22, e.y - 3, 44, 6)
+    } else {
+      // Bigger small ornithopter
+      ctx.fillStyle = '#666'
+      ctx.beginPath()
+      ctx.moveTo(e.x, e.y - 8)
+      ctx.lineTo(e.x + 12, e.y)
+      ctx.lineTo(e.x, e.y + 6)
+      ctx.lineTo(e.x - 12, e.y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.fillStyle = '#999'
+      ctx.fillRect(e.x - 14, e.y - 2, 28, 4)
+    }
+  }
 }

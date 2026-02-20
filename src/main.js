@@ -23,7 +23,7 @@ registerState(STATES.LEVEL2, level2)
 registerState(STATES.LEVEL3, level3)
 registerState(STATES.GAMEOVER, gameover)
 
-switchState(STATES.TITLE)
+switchState(STATES.LEVEL3) // TEMP: skip to level 3 for testing
 
 let lastTime = 0
 

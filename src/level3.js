@@ -1,5 +1,6 @@
-// Level 3 — Dismount the Worm (top-down)
-// Worm is diving — player must jump to a safe zone, avoiding hazards
+// Level 3 — Dismount the Worm (side-scrolling)
+// Move ←→ along the worm body. Walk onto an adjacent rock with ↑↓ (0 pts).
+// Hold SPACE to charge a jump, aim with ←→↑↓, release to leap. Farther = more points.
 
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, L3 } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
@@ -10,201 +11,328 @@ import { renderHUD } from './hud.js'
 import { playMusic, sfxJump, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
 import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
 
-const PHASE = { AIM: 0, JUMPING: 1, DEATH: 2, SUCCESS: 3 }
+const PHASE = { RIDE: 0, CHARGING: 1, JUMPING: 2, WALKING: 3, DEATH: 4, SUCCESS: 5 }
 
-let phase, timer
-let wormRadius, wormDiveTimer
-let safeZone       // {x, y, radius}
-let hazards        // [{x, y, type, timer}]
-let cursor         // {x, y} — aiming reticle
-let jumpCharge     // 0..1
-let jumpTrajectory // {startX, startY, targetX, targetY, progress}
-let playerPos      // {x, y} — final landing position
-let deathMessage
+const GROUND_Y = 280
+const NUM_SEGS = 8
+const SEG_GAP = 35
+const ROCK_HIT = 24        // landing radius on a rock
+const WALK_RANGE = 55       // max distance to walk off onto a rock
+const MOVE_SPEED = 4        // segments per second along worm
+const CHARGE_RATE = 0.8     // charge per second (full in ~1.25s)
+const WALK_SPEED = 2.5      // walk animation speed
+const MAX_JUMP_POINTS = 500 // max points for a full-power jump (×loop)
 
-function randomInRing(cx, cy, minR, maxR) {
-  const angle = Math.random() * Math.PI * 2
-  const r = minR + Math.random() * (maxR - minR)
-  return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r }
-}
+let phase, phaseTimer, animTimer, deathMessage
+let wDir, wHeadX, wSpeed, wDiveProgress, wDiveDelay
+let wSegs
 
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v))
-}
+let rocks
+let playerSegPos      // float position along worm (1 → NUM_SEGS-1)
+let playerPos         // {x, y} final landing spot
+let jumpArc           // {startX, startY, targetX, targetY, progress, distance}
+let chargeAmount      // 0→1
+let aimDX, aimDY      // aim direction while charging
+let walkStart, walkTarget, walkProgress
+let landScore
+let prevSpaceDown
 
-function generateHazards() {
-  const h = []
-  const loop = game.loop - 1
-  const cx = safeZone.x
-  const cy = safeZone.y
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
-  // Rocks
-  const rocks = L3.rockCountBase + L3.rockCountPerLoop * loop
-  for (let i = 0; i < rocks; i++) {
-    const pos = randomInRing(cx, cy, safeZone.radius + 10, 140)
-    h.push({ x: clamp(pos.x, 30, GAME_WIDTH - 30), y: clamp(pos.y, 30, GAME_HEIGHT - 30), type: 'rock', radius: 12 + Math.random() * 8 })
-  }
-
-  // Quicksand
-  const qs = L3.quicksandCountBase + L3.quicksandCountPerLoop * loop
-  for (let i = 0; i < qs; i++) {
-    const pos = randomInRing(cx, cy, safeZone.radius + 20, 160)
-    h.push({ x: clamp(pos.x, 30, GAME_WIDTH - 30), y: clamp(pos.y, 30, GAME_HEIGHT - 30), type: 'quicksand', radius: 20 + Math.random() * 15 })
-  }
-
-  // Geysers
-  const gs = L3.geyserCountBase + L3.geyserCountPerLoop * loop
-  for (let i = 0; i < gs; i++) {
-    const pos = randomInRing(cx, cy, safeZone.radius + 15, 150)
-    h.push({
-      x: clamp(pos.x, 30, GAME_WIDTH - 30),
-      y: clamp(pos.y, 30, GAME_HEIGHT - 30),
-      type: 'geyser',
-      radius: 16,
-      timer: Math.random() * L3.geyserInterval,
-      active: false,
+// Generate rocks scattered on the ground
+function generateRocks() {
+  const r = []
+  const count = L3.rockCountBase + L3.rockCountPerLoop * (game.loop - 1)
+  for (let i = 0; i < count; i++) {
+    r.push({
+      x: 60 + Math.random() * (GAME_WIDTH - 120),
+      y: GROUND_Y - 5 + Math.random() * 10,
+      radius: 14 + Math.random() * 10,
     })
   }
+  return r
+}
 
-  return h
+// Worm segment Y — starts above ground, gradually sinks as diveProgress increases
+function wormSegY(segIdx) {
+  const segDelay = segIdx * 0.08
+  const segDive = clamp(wDiveProgress - segDelay, 0, 1)
+  const diveAmount = segDive * segDive
+  const baseY = GROUND_Y - 20
+  return baseY + diveAmount * 80
+}
+
+function refreshWormSegs() {
+  wSegs = []
+  for (let i = 0; i < NUM_SEGS; i++) {
+    const x = wHeadX - wDir * i * SEG_GAP
+    wSegs.push({ x, y: wormSegY(i) })
+  }
+}
+
+// Interpolate player world position from segment position
+function getPlayerWorldPos() {
+  const idx = Math.floor(playerSegPos)
+  const frac = playerSegPos - idx
+  const nextIdx = Math.min(idx + 1, NUM_SEGS - 1)
+  const a = wSegs[idx]
+  const b = wSegs[nextIdx]
+  return {
+    x: a.x + (b.x - a.x) * frac,
+    y: a.y + (b.y - a.y) * frac,
+  }
+}
+
+// Find closest rock within range
+function findNearestRock(px, py, maxDist) {
+  let best = null, bestDist = Infinity
+  for (const rock of rocks) {
+    const dx = px - rock.x
+    const dy = py - rock.y
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    if (dist < bestDist && dist < maxDist) {
+      best = rock
+      bestDist = dist
+    }
+  }
+  return best ? { rock: best, dist: bestDist } : null
+}
+
+function die() {
+  phase = PHASE.DEATH
+  phaseTimer = 0
+  loseLife()
+  sfxDeath()
+  triggerShake(10, 0.5)
+  triggerFlash('#ff0000', 0.25)
+  if (playerPos) {
+    spawnParticles(playerPos.x, playerPos.y, 20, { color: COLORS.sand, speedMax: 100 })
+  }
+}
+
+function drawPlayer(ctx, x, y) {
+  ctx.fillStyle = COLORS.spiceBlue
+  ctx.fillRect(x - 6, y - 32, 12, 14)
+  ctx.fillStyle = COLORS.bone
+  ctx.beginPath()
+  ctx.arc(x, y - 36, 6, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = COLORS.deepBrown
+  ctx.fillRect(x - 4, y - 18, 3, 6)
+  ctx.fillRect(x + 1, y - 18, 3, 6)
 }
 
 export const level3 = {
   enter() {
-    phase = PHASE.AIM
-    timer = 0
-    wormDiveTimer = 0
-    wormRadius = L3.wormStartRadius
+    phase = PHASE.RIDE
+    phaseTimer = 0
+    animTimer = 0
     deathMessage = ''
 
-    // Safe zone — randomly placed but not too close to edges
-    const margin = 80
-    safeZone = {
-      x: margin + Math.random() * (GAME_WIDTH - margin * 2),
-      y: margin + Math.random() * (GAME_HEIGHT - margin * 2),
-      radius: Math.max(L3.safeZoneBaseRadius - L3.safeZoneShrinkPerLoop * (game.loop - 1), L3.safeZoneMinRadius),
-    }
+    wDir = Math.random() < 0.5 ? 1 : -1
+    wHeadX = wDir === 1 ? 80 : GAME_WIDTH - 80
+    wSpeed = 80 + 8 * (game.loop - 1)
+    wDiveProgress = 0
+    wDiveDelay = 1.5
 
-    hazards = generateHazards()
-
-    // Player starts at center (on the worm)
-    cursor = { x: GAME_WIDTH / 2, y: GAME_HEIGHT / 2 }
-    jumpCharge = 0
-    jumpTrajectory = null
+    playerSegPos = 3
     playerPos = null
+    jumpArc = null
+    chargeAmount = 0
+    aimDX = 0
+    aimDY = -1
+    walkStart = null
+    walkTarget = null
+    walkProgress = 0
+    landScore = 0
+    prevSpaceDown = false
+
+    rocks = generateRocks()
+
     playMusic('level3')
     sfxWormRumble()
     clearParticles()
   },
 
   update(dt) {
-    // Worm sinking animation
-    wormDiveTimer += dt
-    wormRadius = Math.max(L3.wormStartRadius - L3.wormShrinkRate * wormDiveTimer, 0)
+    animTimer += dt
 
-    // Update geysers
-    for (const h of hazards) {
-      if (h.type === 'geyser') {
-        const wasBefore = (h.timer % L3.geyserInterval) < L3.geyserDangerDuration
-        h.timer += dt
-        h.active = (h.timer % L3.geyserInterval) < L3.geyserDangerDuration
-        // Spawn particles on eruption start
-        if (h.active && !wasBefore) {
-          spawnParticles(h.x, h.y, 12, { color: COLORS.spiceBlue, speedMin: 30, speedMax: 80, life: 0.6 })
+    // Worm physics for active phases
+    const wormActive = phase <= PHASE.WALKING
+    if (wormActive) {
+      wHeadX += wDir * wSpeed * dt
+      if (wDiveDelay > 0) {
+        wDiveDelay -= dt
+      } else {
+        const diveRate = L3.wormDiveDuration > 0 ? dt / L3.wormDiveDuration : dt
+        wDiveProgress = clamp(wDiveProgress + diveRate, 0, 1.5)
+      }
+      refreshWormSegs()
+
+      // Sand trail particles
+      for (const seg of wSegs) {
+        if (seg.y > GROUND_Y && seg.x > 0 && seg.x < GAME_WIDTH && Math.random() < 0.1) {
+          spawnParticles(seg.x, GROUND_Y, 1, {
+            color: '#d4a030', speedMin: 5, speedMax: 20, life: 0.3, sizeMax: 3,
+          })
         }
       }
     }
 
-    if (phase === PHASE.AIM) {
-      // Move cursor with arrow keys
-      if (isDown('ArrowLeft') || isDown('KeyA')) cursor.x -= L3.playerSpeed * dt
-      if (isDown('ArrowRight') || isDown('KeyD')) cursor.x += L3.playerSpeed * dt
-      if (isDown('ArrowUp') || isDown('KeyW')) cursor.y -= L3.playerSpeed * dt
-      if (isDown('ArrowDown') || isDown('KeyS')) cursor.y += L3.playerSpeed * dt
-      cursor.x = clamp(cursor.x, 20, GAME_WIDTH - 20)
-      cursor.y = clamp(cursor.y, 20, GAME_HEIGHT - 20)
+    // === RIDE: move along worm, walk off, or start charging ===
+    if (phase === PHASE.RIDE) {
+      // Move along worm with ←→
+      // Left key moves toward screen-left, right toward screen-right
+      let moveDir = 0
+      if (isDown('ArrowLeft') || isDown('KeyA')) moveDir += wDir
+      if (isDown('ArrowRight') || isDown('KeyD')) moveDir -= wDir
+      playerSegPos = clamp(playerSegPos + moveDir * MOVE_SPEED * dt, 1, NUM_SEGS - 1)
 
-      // Charge jump with space
-      if (isDown('Space')) {
-        jumpCharge = Math.min(jumpCharge + L3.jumpChargeRate * dt, 1)
+      const pos = getPlayerWorldPos()
+
+      // Walk off onto adjacent rock with ↑↓
+      if (wasPressed('ArrowUp') || wasPressed('KeyW') || wasPressed('ArrowDown') || wasPressed('KeyS')) {
+        const nearby = findNearestRock(pos.x, pos.y, WALK_RANGE)
+        if (nearby) {
+          walkStart = { x: pos.x, y: pos.y }
+          walkTarget = { x: nearby.rock.x, y: nearby.rock.y }
+          walkProgress = 0
+          landScore = 0
+          phase = PHASE.WALKING
+        }
       }
 
-      // Release to jump
-      if (!isDown('Space') && jumpCharge > 0) {
-        sfxJump()
-        jumpTrajectory = {
-          startX: GAME_WIDTH / 2,
-          startY: GAME_HEIGHT / 2,
-          targetX: cursor.x,
-          targetY: cursor.y,
+      // Start charging jump with SPACE
+      if (isDown('Space') && !prevSpaceDown) {
+        chargeAmount = 0
+        aimDX = 0
+        aimDY = -1
+        phase = PHASE.CHARGING
+      }
+      prevSpaceDown = isDown('Space')
+
+      // Dragged under
+      if (pos.y > GROUND_Y + 40) {
+        deathMessage = 'DRAGGED UNDER!'
+        playerPos = pos
+        die()
+      }
+    }
+
+    // === CHARGING: hold space, aim with arrows, release to jump ===
+    if (phase === PHASE.CHARGING) {
+      chargeAmount = clamp(chargeAmount + CHARGE_RATE * dt, 0, 1)
+
+      // Aim direction
+      let dx = 0, dy = 0
+      if (isDown('ArrowLeft') || isDown('KeyA')) dx -= 1
+      if (isDown('ArrowRight') || isDown('KeyD')) dx += 1
+      if (isDown('ArrowUp') || isDown('KeyW')) dy -= 1
+      if (isDown('ArrowDown') || isDown('KeyS')) dy += 1
+      if (dx !== 0 || dy !== 0) {
+        const mag = Math.sqrt(dx * dx + dy * dy)
+        aimDX = dx / mag
+        aimDY = dy / mag
+      }
+
+      // Release space → jump
+      if (!isDown('Space')) {
+        const pos = getPlayerWorldPos()
+        const jumpDist = chargeAmount * L3.jumpMaxPower
+        const targetX = clamp(pos.x + aimDX * jumpDist, 20, GAME_WIDTH - 20)
+        const targetY = clamp(pos.y + aimDY * jumpDist, 20, GROUND_Y)
+
+        jumpArc = {
+          startX: pos.x,
+          startY: Math.min(pos.y, GROUND_Y - 10),
+          targetX,
+          targetY,
           progress: 0,
+          distance: jumpDist,
         }
+        landScore = Math.floor(chargeAmount * MAX_JUMP_POINTS * game.loop)
+        sfxJump()
         phase = PHASE.JUMPING
       }
 
-      // Forced jump if worm fully submerged
-      if (wormRadius <= 0 && jumpCharge === 0) {
-        deathMessage = 'SWALLOWED BY SAND!'
+      // Dragged under while charging
+      const pos = getPlayerWorldPos()
+      if (pos.y > GROUND_Y + 40) {
+        deathMessage = 'DRAGGED UNDER!'
+        playerPos = pos
         die()
       }
     }
 
+    // === JUMPING: arc through air ===
     if (phase === PHASE.JUMPING) {
-      jumpTrajectory.progress += dt * 2.5
-      if (jumpTrajectory.progress >= 1) {
-        jumpTrajectory.progress = 1
-        playerPos = { x: jumpTrajectory.targetX, y: jumpTrajectory.targetY }
+      jumpArc.progress += dt * 2.5
+      if (jumpArc.progress >= 1) {
+        jumpArc.progress = 1
+        playerPos = { x: jumpArc.targetX, y: jumpArc.targetY }
 
-        // Check landing
-        const dx = playerPos.x - safeZone.x
-        const dy = playerPos.y - safeZone.y
-        const distToSafe = Math.sqrt(dx * dx + dy * dy)
-
-        if (distToSafe <= safeZone.radius) {
-          // Check hazards in safe zone (shouldn't be any, but just in case)
-          phase = PHASE.SUCCESS
-          timer = 0
-          addLife()
-          addScore(200 * game.loop)
-          nextLoop()
-          sfxSuccess()
-          spawnParticles(playerPos.x, playerPos.y, 25, { color: '#44ff44', speedMax: 120 })
-          return
-        }
-
-        // Check hazard collisions
-        for (const h of hazards) {
-          const hx = playerPos.x - h.x
-          const hy = playerPos.y - h.y
-          const hDist = Math.sqrt(hx * hx + hy * hy)
-          if (hDist < h.radius + 8) {
-            if (h.type === 'rock') { deathMessage = 'CRUSHED ON ROCKS!'; die(); return }
-            if (h.type === 'quicksand') { deathMessage = 'SINKING IN QUICKSAND!'; die(); return }
-            if (h.type === 'geyser' && h.active) { deathMessage = 'SPICE BLOW!'; die(); return }
+        let landed = false
+        for (const rock of rocks) {
+          const rdx = playerPos.x - rock.x
+          const rdy = playerPos.y - rock.y
+          const dist = Math.sqrt(rdx * rdx + rdy * rdy)
+          if (dist < ROCK_HIT + rock.radius * 0.5) {
+            landed = true
+            break
           }
         }
 
-        // Missed safe zone, no hazard hit — still failed
-        deathMessage = 'MISSED THE LANDING!'
-        die()
-      }
-    }
-
-    if (phase === PHASE.DEATH) {
-      timer += dt
-      if (timer >= L3.deathPause) {
-        if (game.lives >= 0) {
-          level3.enter()  // Retry level 3
+        if (landed) {
+          phase = PHASE.SUCCESS
+          phaseTimer = 0
+          addLife()
+          addScore(landScore)
+          nextLoop()
+          sfxSuccess()
+          spawnParticles(playerPos.x, playerPos.y, 25, { color: '#44ff44', speedMax: 120 })
         } else {
-          switchState('gameover')
+          deathMessage = 'SWALLOWED BY SAND!'
+          die()
         }
       }
     }
 
+    // === WALKING: smooth walk to rock ===
+    if (phase === PHASE.WALKING) {
+      walkProgress += WALK_SPEED * dt
+      if (walkProgress >= 1) {
+        walkProgress = 1
+        playerPos = { x: walkTarget.x, y: walkTarget.y }
+        phase = PHASE.SUCCESS
+        phaseTimer = 0
+        addLife()
+        // landScore = 0 for walking — no addScore call
+        nextLoop()
+        sfxSuccess()
+        spawnParticles(playerPos.x, playerPos.y, 15, { color: '#44ff44', speedMax: 80 })
+      }
+    }
+
+    // === DEATH ===
+    if (phase === PHASE.DEATH) {
+      wHeadX += wDir * wSpeed * dt
+      if (wDiveDelay <= 0) {
+        wDiveProgress = clamp(wDiveProgress + dt / L3.wormDiveDuration, 0, 1.5)
+      }
+      refreshWormSegs()
+
+      phaseTimer += dt
+      if (phaseTimer >= L3.deathPause) {
+        if (game.lives >= 0) level3.enter()
+        else switchState('gameover')
+      }
+    }
+
+    // === SUCCESS ===
     if (phase === PHASE.SUCCESS) {
-      timer += dt
-      if (timer >= L3.successPause) {
-        switchState('level1')  // New loop!
+      phaseTimer += dt
+      if (phaseTimer >= L3.successPause) {
+        switchState('level1')
       }
     }
   },
@@ -215,186 +343,193 @@ export const level3 = {
     // Desert background
     clear(COLORS.sand)
 
-    // Worm (sinking circle in center)
-    if (wormRadius > 0) {
-      ctx.fillStyle = COLORS.burntOrange
+    // Ground
+    ctx.fillStyle = '#c4960a'
+    ctx.fillRect(0, GROUND_Y + 10, GAME_WIDTH, 3)
+    ctx.fillStyle = '#b08800'
+    ctx.fillRect(0, GROUND_Y + 13, GAME_WIDTH, GAME_HEIGHT - GROUND_Y - 13)
+
+    // Rocks — highlight walkable ones green
+    const ppos = (phase === PHASE.RIDE || phase === PHASE.CHARGING) && wSegs
+      ? getPlayerWorldPos() : null
+    for (const rock of rocks) {
+      let walkable = false
+      if (ppos) {
+        const dx = ppos.x - rock.x
+        const dy = ppos.y - rock.y
+        if (Math.sqrt(dx * dx + dy * dy) < WALK_RANGE) walkable = true
+      }
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.2)'
       ctx.beginPath()
-      ctx.arc(GAME_WIDTH / 2, GAME_HEIGHT / 2, wormRadius, 0, Math.PI * 2)
+      ctx.ellipse(rock.x + 3, rock.y + rock.radius * 0.3,
+        rock.radius, rock.radius * 0.4, 0, 0, Math.PI * 2)
       ctx.fill()
-      ctx.fillStyle = COLORS.deepBrown
+      // Body
+      ctx.fillStyle = walkable ? '#88bb66' : '#777'
       ctx.beginPath()
-      ctx.arc(GAME_WIDTH / 2, GAME_HEIGHT / 2, wormRadius * 0.6, 0, Math.PI * 2)
+      ctx.arc(rock.x, rock.y, rock.radius, 0, Math.PI * 2)
+      ctx.fill()
+      // Highlight
+      ctx.fillStyle = walkable ? '#aadd88' : '#999'
+      ctx.beginPath()
+      ctx.arc(rock.x - rock.radius * 0.2, rock.y - rock.radius * 0.2,
+        rock.radius * 0.6, 0, Math.PI * 2)
+      ctx.fill()
+      // Top edge
+      ctx.fillStyle = walkable ? '#ccffaa' : '#aaa'
+      ctx.beginPath()
+      ctx.arc(rock.x - rock.radius * 0.15, rock.y - rock.radius * 0.4,
+        rock.radius * 0.3, 0, Math.PI * 2)
       ctx.fill()
     }
 
-    // Safe zone
-    ctx.strokeStyle = '#44ff44'
-    ctx.lineWidth = 3
-    ctx.setLineDash([8, 4])
-    ctx.beginPath()
-    ctx.arc(safeZone.x, safeZone.y, safeZone.radius, 0, Math.PI * 2)
-    ctx.stroke()
-    ctx.setLineDash([])
-    // Safe zone fill
-    ctx.fillStyle = 'rgba(68, 255, 68, 0.15)'
-    ctx.beginPath()
-    ctx.arc(safeZone.x, safeZone.y, safeZone.radius, 0, Math.PI * 2)
-    ctx.fill()
+    // Worm body (tail to head)
+    if (wSegs && wSegs.length) {
+      for (let i = wSegs.length - 1; i >= 0; i--) {
+        const seg = wSegs[i]
+        const radius = Math.max(20 - i * 1.5, 8)
+        if (seg.y > GROUND_Y + radius + 10) continue
 
-    // Hazards
-    for (const h of hazards) {
-      if (h.type === 'rock') {
-        ctx.fillStyle = '#666'
+        ctx.fillStyle = i === 0 ? COLORS.deepBrown : COLORS.burntOrange
         ctx.beginPath()
-        ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2)
+        ctx.arc(seg.x, seg.y, radius, 0, Math.PI * 2)
         ctx.fill()
-        ctx.fillStyle = '#888'
+
+        // Sand splash at ground line
+        if (seg.y > GROUND_Y - radius && seg.y < GROUND_Y + radius + 5) {
+          ctx.fillStyle = '#d4a030'
+          ctx.beginPath()
+          ctx.ellipse(seg.x, GROUND_Y + 10, radius + 5, 6, 0, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+
+      // Head details (mouth + teeth)
+      const head = wSegs[0]
+      if (head.y < GROUND_Y + 15) {
+        ctx.fillStyle = COLORS.deepBrown
         ctx.beginPath()
-        ctx.arc(h.x - 2, h.y - 2, h.radius * 0.6, 0, Math.PI * 2)
+        ctx.arc(head.x + wDir * 8, head.y, 10, 0, Math.PI * 2)
         ctx.fill()
-      } else if (h.type === 'quicksand') {
-        ctx.fillStyle = '#c4a035'
-        ctx.beginPath()
-        ctx.arc(h.x, h.y, h.radius, 0, Math.PI * 2)
-        ctx.fill()
-        // Spiral pattern
-        ctx.strokeStyle = '#a08020'
+        ctx.fillStyle = COLORS.bone
+        for (let t = 0; t < 5; t++) {
+          const a = (t / 5) * Math.PI * 2
+          ctx.beginPath()
+          ctx.arc(head.x + wDir * 8 + Math.cos(a) * 8,
+            head.y + Math.sin(a) * 8, 2, 0, Math.PI * 2)
+          ctx.fill()
+        }
+      }
+    }
+
+    // Player on worm (RIDE or CHARGING)
+    if ((phase === PHASE.RIDE || phase === PHASE.CHARGING) && wSegs) {
+      const pos = getPlayerWorldPos()
+      if (pos.y < GROUND_Y + 10) {
+        drawPlayer(ctx, pos.x, pos.y)
+      }
+
+      // Charge indicator
+      if (phase === PHASE.CHARGING) {
+        const barW = 30, barH = 4
+        const bx = pos.x - barW / 2
+        const by = pos.y - 52
+
+        // Bar background
+        ctx.fillStyle = 'rgba(0,0,0,0.5)'
+        ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2)
+        // Bar fill — green→yellow→red as charge increases
+        const r = Math.floor(255 * chargeAmount)
+        const g = Math.floor(255 * (1 - chargeAmount * 0.5))
+        ctx.fillStyle = `rgb(${r},${g},50)`
+        ctx.fillRect(bx, by, barW * chargeAmount, barH)
+
+        // Aim direction line
+        const aimLen = 20 + chargeAmount * 40
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'
         ctx.lineWidth = 2
+        ctx.setLineDash([4, 4])
         ctx.beginPath()
-        for (let a = 0; a < Math.PI * 4; a += 0.3) {
-          const r = (a / (Math.PI * 4)) * h.radius * 0.8
-          const px = h.x + Math.cos(a + timer) * r
-          const py = h.y + Math.sin(a + timer) * r
-          if (a === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        }
+        ctx.moveTo(pos.x, pos.y - 26)
+        ctx.lineTo(pos.x + aimDX * aimLen, pos.y - 26 + aimDY * aimLen)
         ctx.stroke()
-      } else if (h.type === 'geyser') {
-        ctx.fillStyle = h.active ? '#ff6600' : '#8b4513'
+        ctx.setLineDash([])
+
+        // Aim dot
+        ctx.fillStyle = 'white'
         ctx.beginPath()
-        ctx.arc(h.x, h.y, h.active ? h.radius * 1.5 : h.radius * 0.7, 0, Math.PI * 2)
+        ctx.arc(pos.x + aimDX * aimLen, pos.y - 26 + aimDY * aimLen, 3, 0, Math.PI * 2)
         ctx.fill()
-        if (h.active) {
-          // Eruption particles
-          ctx.fillStyle = COLORS.spiceBlue
-          for (let i = 0; i < 6; i++) {
-            const a = (i / 6) * Math.PI * 2
-            const r = h.radius + Math.random() * 10
-            ctx.beginPath()
-            ctx.arc(h.x + Math.cos(a) * r, h.y + Math.sin(a) * r, 3, 0, Math.PI * 2)
-            ctx.fill()
-          }
-        }
       }
     }
 
-    // Cursor / aiming reticle (during AIM phase)
-    if (phase === PHASE.AIM) {
-      // Dashed line from center to cursor
-      ctx.strokeStyle = COLORS.bone
-      ctx.lineWidth = 1
-      ctx.setLineDash([4, 4])
-      ctx.beginPath()
-      ctx.moveTo(GAME_WIDTH / 2, GAME_HEIGHT / 2)
-      ctx.lineTo(cursor.x, cursor.y)
-      ctx.stroke()
-      ctx.setLineDash([])
-
-      // Crosshair
-      ctx.strokeStyle = '#fff'
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(cursor.x, cursor.y, 10, 0, Math.PI * 2)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(cursor.x - 14, cursor.y)
-      ctx.lineTo(cursor.x + 14, cursor.y)
-      ctx.moveTo(cursor.x, cursor.y - 14)
-      ctx.lineTo(cursor.x, cursor.y + 14)
-      ctx.stroke()
-
-      // Charge bar
-      if (jumpCharge > 0) {
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'
-        ctx.fillRect(GAME_WIDTH / 2 - 50, GAME_HEIGHT - 40, 100, 14)
-        ctx.fillStyle = jumpCharge > 0.8 ? '#44ff44' : COLORS.sand
-        ctx.fillRect(GAME_WIDTH / 2 - 48, GAME_HEIGHT - 38, 96 * jumpCharge, 10)
-      }
-
-      drawText('Aim with arrows, hold SPACE to charge, release to jump', GAME_WIDTH / 2, 20, {
-        color: COLORS.deepBrown, size: 12,
-      })
+    // Walking animation
+    if (phase === PHASE.WALKING && walkStart && walkTarget) {
+      const t = walkProgress
+      const wx = walkStart.x + (walkTarget.x - walkStart.x) * t
+      const wy = walkStart.y + (walkTarget.y - walkStart.y) * t
+      drawPlayer(ctx, wx, wy)
     }
 
     // Jumping arc
-    if (phase === PHASE.JUMPING && jumpTrajectory) {
-      const t = jumpTrajectory.progress
-      const px = jumpTrajectory.startX + (jumpTrajectory.targetX - jumpTrajectory.startX) * t
-      const py = jumpTrajectory.startY + (jumpTrajectory.targetY - jumpTrajectory.startY) * t - Math.sin(t * Math.PI) * 80
-      // Shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.3)'
+    if (phase === PHASE.JUMPING && jumpArc) {
+      const t = jumpArc.progress
+      const px = jumpArc.startX + (jumpArc.targetX - jumpArc.startX) * t
+      const py = jumpArc.startY + (jumpArc.targetY - jumpArc.startY) * t
+        - Math.sin(t * Math.PI) * 80
+      // Shadow on ground
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'
       ctx.beginPath()
-      ctx.ellipse(px, jumpTrajectory.startY + (jumpTrajectory.targetY - jumpTrajectory.startY) * t, 8, 4, 0, 0, Math.PI * 2)
+      ctx.ellipse(px, GROUND_Y + 5, 8, 3, 0, 0, Math.PI * 2)
       ctx.fill()
-      // Player in air
-      ctx.fillStyle = COLORS.spiceBlue
-      ctx.fillRect(px - 8, py - 24, 16, 20)
-      ctx.fillStyle = COLORS.bone
-      ctx.beginPath()
-      ctx.arc(px, py - 30, 8, 0, Math.PI * 2)
-      ctx.fill()
+      // Player
+      drawPlayer(ctx, px, py + 12) // offset to match arc center
     }
 
     // Landed player
     if (playerPos && (phase === PHASE.SUCCESS || phase === PHASE.DEATH)) {
-      ctx.fillStyle = COLORS.spiceBlue
-      ctx.fillRect(playerPos.x - 8, playerPos.y - 24, 16, 20)
-      ctx.fillStyle = COLORS.bone
-      ctx.beginPath()
-      ctx.arc(playerPos.x, playerPos.y - 30, 8, 0, Math.PI * 2)
-      ctx.fill()
+      drawPlayer(ctx, playerPos.x, playerPos.y)
     }
 
-    // Player on worm (center, during AIM)
-    if (phase === PHASE.AIM && wormRadius > 0) {
-      ctx.fillStyle = COLORS.spiceBlue
-      ctx.fillRect(GAME_WIDTH / 2 - 8, GAME_HEIGHT / 2 - 24, 16, 20)
-      ctx.fillStyle = COLORS.bone
-      ctx.beginPath()
-      ctx.arc(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, 8, 0, Math.PI * 2)
-      ctx.fill()
+    // HUD prompts
+    if (phase === PHASE.RIDE) {
+      drawText('←→ move on worm | ↑↓ step onto rock | Hold SPACE to charge jump',
+        GAME_WIDTH / 2, 20, { color: COLORS.deepBrown, size: 11 })
+      if (wDiveDelay <= 0 && wDiveProgress > 0.3) {
+        const urgency = Math.sin(animTimer * 8) > 0 ? '#ff4444' : '#ff8800'
+        drawText('WORM IS DIVING!', GAME_WIDTH / 2, 40, { color: urgency, size: 14 })
+      }
+    }
+    if (phase === PHASE.CHARGING) {
+      drawText('AIM with ←→↑↓ — Release SPACE to jump!',
+        GAME_WIDTH / 2, 20, { color: '#ff8800', size: 13 })
     }
 
     // Death overlay
     if (phase === PHASE.DEATH) {
       ctx.fillStyle = 'rgba(0,0,0,0.6)'
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
-      drawText(deathMessage, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20, { color: '#ff4444', size: 28 })
-      drawText(`Lives: ${game.lives}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 15, { color: COLORS.bone, size: 16 })
+      drawText(deathMessage, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20,
+        { color: '#ff4444', size: 28 })
+      drawText(`Lives: ${game.lives}`, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 15,
+        { color: COLORS.bone, size: 16 })
     }
 
     // Success overlay
     if (phase === PHASE.SUCCESS) {
       ctx.fillStyle = 'rgba(0,0,0,0.3)'
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
-      drawText('SAFE LANDING!', GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, { color: '#44ff44', size: 32 })
-      drawText('+1 Life — Starting Loop ' + game.loop, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10, {
-        color: COLORS.bone, size: 16,
-      })
+      const isJump = landScore > 0
+      const title = isJump ? 'GREAT JUMP!' : 'SAFE LANDING!'
+      drawText(title, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30,
+        { color: '#44ff44', size: 32 })
+      const scoreMsg = isJump ? `+${landScore} pts — ` : ''
+      drawText(scoreMsg + '+1 Life — Starting Loop ' + game.loop,
+        GAME_WIDTH / 2, GAME_HEIGHT / 2 + 10, { color: COLORS.bone, size: 16 })
     }
 
     renderHUD()
   },
-}
-
-function die() {
-  phase = PHASE.DEATH
-  timer = 0
-  loseLife()
-  sfxDeath()
-  triggerShake(10, 0.5)
-  triggerFlash('#ff0000', 0.25)
-  if (playerPos) {
-    spawnParticles(playerPos.x, playerPos.y, 20, { color: COLORS.sand, speedMax: 100 })
-  }
 }
