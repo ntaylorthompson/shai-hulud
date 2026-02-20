@@ -120,7 +120,7 @@ export const L3 = {
 
   // Jump
   jumpChargeRate: 1.0,        // fill rate (0→1 in 1 second)
-  jumpMaxPower: 200,          // max distance in pixels
+  jumpMaxPower: 280,          // max distance in pixels
   playerSpeed: 120,           // directional aiming speed
 
   // Hazards

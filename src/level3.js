@@ -23,6 +23,7 @@ const MOVE_SPEED = 4
 const CHARGE_RATE = 0.8
 const WALK_SPEED = 2.5
 const MAX_JUMP_POINTS = 500
+const AIM_ROTATE_SPEED = 3.0
 
 let phase, phaseTimer, animTimer, deathMessage
 let wAngle, wSpeed, wDiveProgress, wDiveDelay
@@ -34,7 +35,7 @@ let playerSegPos
 let playerPos
 let jumpArc
 let chargeAmount
-let aimDX, aimDY
+let aimAngle
 let walkStart, walkTarget, walkProgress
 let landScore
 let prevSpaceDown
@@ -44,14 +45,33 @@ function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 function generateRocks() {
   const r = []
   const count = L3.rockCountBase + L3.rockCountPerLoop * (game.loop - 1)
-  // Scatter rocks across the full play area, away from center
-  for (let i = 0; i < count; i++) {
-    let rx, ry
-    // Keep rocks at least 80px from screen center (worm starts there)
+
+  // First rock: guaranteed within walk range of a mid-body worm segment
+  const segIdx = Math.min(4, NUM_SEGS - 1)
+  const tailAngle = wAngle + Math.PI
+  const segX = W / 2 + Math.cos(tailAngle) * segIdx * SEG_GAP
+  const segY = H / 2 + Math.sin(tailAngle) * segIdx * SEG_GAP
+  const perpAngle = wAngle + Math.PI / 2 + (Math.random() > 0.5 ? 0 : Math.PI)
+  const closeDist = WALK_RANGE * (0.4 + Math.random() * 0.3)
+  r.push({
+    x: clamp(segX + Math.cos(perpAngle) * closeDist, 40, W - 40),
+    y: clamp(segY + Math.sin(perpAngle) * closeDist, 40, H - 40),
+    radius: 12 + Math.random() * 8,
+  })
+
+  // Remaining rocks: scatter within jump range, away from worm center
+  const maxDist = L3.jumpMaxPower * 0.85
+  for (let i = 1; i < count; i++) {
+    let rx, ry, attempts = 0
     do {
-      rx = 40 + Math.random() * (W - 80)
-      ry = 40 + Math.random() * (H - 80)
-    } while (Math.sqrt((rx - W / 2) ** 2 + (ry - H / 2) ** 2) < 80)
+      const angle = Math.random() * Math.PI * 2
+      const dist = 50 + Math.random() * maxDist
+      rx = W / 2 + Math.cos(angle) * dist
+      ry = H / 2 + Math.sin(angle) * dist
+      attempts++
+    } while ((rx < 40 || rx > W - 40 || ry < 40 || ry > H - 40) && attempts < 50)
+    rx = clamp(rx, 40, W - 40)
+    ry = clamp(ry, 40, H - 40)
     r.push({ x: rx, y: ry, radius: 12 + Math.random() * 8 })
   }
   return r
@@ -101,6 +121,17 @@ function getPlayerWorldPos() {
     x: a.x + (b.x - a.x) * frac,
     y: a.y + (b.y - a.y) * frac,
   }
+}
+
+function getWormPerpAngle() {
+  const idx = Math.floor(playerSegPos)
+  const nextIdx = Math.min(idx + 1, NUM_SEGS - 1)
+  if (!wSegs || !wSegs[idx] || !wSegs[nextIdx]) return -Math.PI / 2
+  const bodyAngle = Math.atan2(
+    wSegs[nextIdx].y - wSegs[idx].y,
+    wSegs[nextIdx].x - wSegs[idx].x,
+  )
+  return bodyAngle + Math.PI / 2
 }
 
 function findNearestRock(px, py, maxDist) {
@@ -212,8 +243,7 @@ export const level3 = {
     playerPos = null
     jumpArc = null
     chargeAmount = 0
-    aimDX = 0
-    aimDY = -1
+    aimAngle = -Math.PI / 2
     walkStart = null
     walkTarget = null
     walkProgress = 0
@@ -280,8 +310,7 @@ export const level3 = {
       // Start charging jump with SPACE
       if (isDown('Space') && !prevSpaceDown) {
         chargeAmount = 0
-        aimDX = 0
-        aimDY = -1
+        aimAngle = getWormPerpAngle()
         phase = PHASE.CHARGING
       }
       prevSpaceDown = isDown('Space')
@@ -299,16 +328,12 @@ export const level3 = {
     if (phase === PHASE.CHARGING) {
       chargeAmount = clamp(chargeAmount + CHARGE_RATE * dt, 0, 1)
 
-      let dx = 0, dy = 0
-      if (isDown('ArrowLeft') || isDown('KeyA')) dx -= 1
-      if (isDown('ArrowRight') || isDown('KeyD')) dx += 1
-      if (isDown('ArrowUp') || isDown('KeyW')) dy -= 1
-      if (isDown('ArrowDown') || isDown('KeyS')) dy += 1
-      if (dx !== 0 || dy !== 0) {
-        const mag = Math.sqrt(dx * dx + dy * dy)
-        aimDX = dx / mag
-        aimDY = dy / mag
-      }
+      // Rotate aim with left/right
+      if (isDown('ArrowLeft') || isDown('KeyA')) aimAngle -= AIM_ROTATE_SPEED * dt
+      if (isDown('ArrowRight') || isDown('KeyD')) aimAngle += AIM_ROTATE_SPEED * dt
+
+      const aimDX = Math.cos(aimAngle)
+      const aimDY = Math.sin(aimAngle)
 
       // Release space → jump
       if (!isDown('Space')) {
@@ -534,20 +559,24 @@ export const level3 = {
         ctx.textBaseline = 'middle'
         ctx.fillText(`+${pts}pts`, pos.x, by - 7)
 
-        // Aim line from player position
-        const aimLen = 20 + chargeAmount * 80
+        // Compute aim direction from angle
+        const adx = Math.cos(aimAngle)
+        const ady = Math.sin(aimAngle)
+        const jumpDist = chargeAmount * L3.jumpMaxPower
+        const landX = clamp(pos.x + adx * jumpDist, 20, W - 20)
+        const landY = clamp(pos.y + ady * jumpDist, 20, H - 20)
+
+        // Aim line from player to landing zone
         ctx.strokeStyle = 'rgba(255,255,255,0.5)'
         ctx.lineWidth = 1
         ctx.setLineDash([3, 3])
         ctx.beginPath()
         ctx.moveTo(pos.x, pos.y)
-        ctx.lineTo(pos.x + aimDX * aimLen, pos.y + aimDY * aimLen)
+        ctx.lineTo(landX, landY)
         ctx.stroke()
         ctx.setLineDash([])
 
         // Landing zone circle
-        const landX = pos.x + aimDX * aimLen
-        const landY = pos.y + aimDY * aimLen
         ctx.strokeStyle = 'rgba(255,255,255,0.3)'
         ctx.lineWidth = 1
         ctx.beginPath()
@@ -592,7 +621,7 @@ export const level3 = {
 
     // Prompts
     if (phase === PHASE.RIDE) {
-      drawText('←→ move on worm  |  ↑↓ walk to rock  |  hold SPACE to jump (more pts)',
+      drawText('←→ move on worm  |  ↑↓ walk to rock  |  hold SPACE + ←→ aim & jump',
         W / 2, 20, { color: COLORS.bone, size: 10 })
       if (wDiveDelay <= 0 && wDiveProgress > 0.3) {
         const urgency = Math.sin(animTimer * 8) > 0 ? '#ff4444' : '#ff8800'
@@ -600,7 +629,7 @@ export const level3 = {
       }
     }
     if (phase === PHASE.CHARGING) {
-      drawText('aim with ←→↑↓  —  release SPACE to jump',
+      drawText('←→ aim direction  —  release SPACE to jump',
         W / 2, 20, { color: COLORS.bone, size: 11 })
     }
 
