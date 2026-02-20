@@ -3,7 +3,7 @@
 
 import { GAME_WIDTH, GAME_HEIGHT, COLORS, L2 } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
-import { isDown } from './input.js'
+import { isDown, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, addScore, loseLife } from './game.js'
 import { renderHUD } from './hud.js'
@@ -28,6 +28,8 @@ let deathMessage
 let closeCallTimer    // countdown to display "CLOSE CALL"
 let closeCallTracking // true when near 2+ dangerous enemies
 let savedWorm, savedEnemies, savedWave, savedWaveTimer  // persist state on death
+let cannonCharges, cannonKillCount, cannonBeam
+const CANNON_KILLS_PER_CHARGE = 3
 
 // Shortest distance accounting for screen wrap
 function wrapDist(ax, ay, bx, by) {
@@ -146,6 +148,9 @@ export const level2 = {
     closeCallTracking = false
     savedWorm = null
     savedEnemies = null
+    cannonCharges = 0
+    cannonKillCount = 0
+    cannonBeam = null
 
     spawnWave()
     wave = 1
@@ -260,6 +265,35 @@ export const level2 = {
       triggerFlash('#ffff00', 0.15)
     }
 
+    // Beam cannon — fire with SPACE
+    if (wasPressed('Space') && cannonCharges > 0) {
+      cannonCharges--
+      const bDirX = Math.cos(worm.angle)
+      const bDirY = Math.sin(worm.angle)
+      for (const e of enemies) {
+        if (!e.alive || e.size !== 'large') continue
+        const dx = wrapDelta(e.x, head.x, W)
+        const dy = wrapDelta(e.y, head.y, H)
+        const along = dx * bDirX + dy * bDirY
+        const perp = Math.abs(-dx * bDirY + dy * bDirX)
+        if (along > 0 && along < 800 && perp < 22) {
+          e.alive = false
+          enemiesRemaining--
+          addScore(50 * game.loop)
+          spawnParticles(e.x, e.y, 15, { color: '#88bbff', speedMax: 80 })
+        }
+      }
+      cannonBeam = { x: head.x, y: head.y, angle: worm.angle, timer: 0 }
+      triggerFlash('#4488ff', 0.15)
+      triggerShake(3, 0.2)
+    }
+
+    // Update beam animation
+    if (cannonBeam) {
+      cannonBeam.timer += dt
+      if (cannonBeam.timer >= 0.4) cannonBeam = null
+    }
+
     // Enemy movement + collision
     for (const e of enemies) {
       if (!e.alive) continue
@@ -335,6 +369,14 @@ export const level2 = {
 
           if (nearDanger > 0) {
             triggerFlash('#ff8800', 0.1)
+          }
+
+          // Cannon charge progress
+          cannonKillCount++
+          if (cannonKillCount >= CANNON_KILLS_PER_CHARGE) {
+            cannonKillCount = 0
+            cannonCharges++
+            triggerFlash('#4488ff', 0.1)
           }
         }
       }
@@ -495,6 +537,31 @@ export const level2 = {
       })
     }
 
+    // Beam cannon visual
+    if (cannonBeam) {
+      const t = cannonBeam.timer / 0.4
+      const alpha = 1 - t
+      const bx = cannonBeam.x
+      const by = cannonBeam.y
+      const dx = Math.cos(cannonBeam.angle)
+      const dy = Math.sin(cannonBeam.angle)
+      const len = 800
+      // Outer glow
+      ctx.strokeStyle = `rgba(136, 187, 255, ${alpha * 0.3})`
+      ctx.lineWidth = 14
+      ctx.beginPath()
+      ctx.moveTo(bx, by)
+      ctx.lineTo(bx + dx * len, by + dy * len)
+      ctx.stroke()
+      // Core beam
+      ctx.strokeStyle = `rgba(220, 240, 255, ${alpha * 0.9})`
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(bx, by)
+      ctx.lineTo(bx + dx * len, by + dy * len)
+      ctx.stroke()
+    }
+
     // Combo display
     if (comboCount > 1 && comboTimer > 0) {
       drawText(`${comboCount}x COMBO!`, W / 2, H - 40, { color: '#ff4444', size: 20 })
@@ -511,6 +578,24 @@ export const level2 = {
     // Edible enemies remaining
     const edible = enemies.filter(e => e.alive && e.size === 'small').length
     drawText(`Prey: ${edible}`, W / 2, 38, { color: COLORS.deepBrown, size: 12 })
+
+    // Beam charge counter — bottom center
+    const chargeColor = cannonCharges > 0 ? COLORS.spiceBlue : 'rgba(90,122,138,0.5)'
+    drawText(`BEAM x${cannonCharges}`, W / 2, H - 28, { color: chargeColor, size: 13 })
+    // Progress pips toward next charge
+    const pipStartX = W / 2 - (CANNON_KILLS_PER_CHARGE - 1) * 5
+    for (let i = 0; i < CANNON_KILLS_PER_CHARGE; i++) {
+      const filled = i < cannonKillCount
+      ctx.fillStyle = filled ? COLORS.spiceBlue : 'rgba(90,122,138,0.25)'
+      ctx.beginPath()
+      ctx.arc(pipStartX + i * 10, H - 14, 3, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    if (cannonCharges > 0) {
+      ctx.globalAlpha = 0.5
+      drawText('SPACE to fire', W / 2, H - 3, { color: COLORS.spiceBlue, size: 8 })
+      ctx.globalAlpha = 1
+    }
 
     // Success
     if (phase === 'success') {
