@@ -61,3 +61,39 @@ export const L1 = {
   deathPause: 1.5,
   successPause: 1.0,
 }
+
+// Level 2 — Ride the Worm
+export const L2 = {
+  // Worm
+  wormSpeed: 150,
+  wormTurnSpeed: 2.5,
+  wormBaseLength: 6,
+  wormGrowthPerLoop: 2,
+  wormMaxLength: 20,
+  wormSegmentSize: 20,
+  wormTurnRadiusGrowth: 0.15,  // turn speed penalty per extra segment
+
+  // Enemies
+  soldierSpeed: 40,
+  harvesterSpeed: 25,
+  ornithopterSpeed: 70,
+  soldierPoints: 10,
+  harvesterPoints: 25,
+  ornithopterPoints: 50,
+
+  // Waves
+  wavesBase: 3,
+  wavesPerLoop: 1,
+  wavesMax: 8,
+  enemiesPerWaveBase: 4,
+  enemiesPerWaveGrowth: 2,
+  waveInterval: 5.0,         // seconds between waves
+  enemySpeedMultPerLoop: 0.15,
+
+  // Combo
+  comboWindow: 1.5,           // seconds to chain kills
+  comboMultiplier: 0.5,       // extra multiplier per combo step
+
+  // Level end
+  successPause: 2.0,
+}
