@@ -3,6 +3,12 @@
 import { GAME_WIDTH, COLORS } from './config.js'
 import { getCtx } from './renderer.js'
 import { game } from './game.js'
+import { isMuted, toggleMute } from './audio.js'
+import { wasPressed } from './input.js'
+
+export function updateHUD() {
+  if (wasPressed('KeyM')) toggleMute()
+}
 
 export function renderHUD() {
   const ctx = getCtx()
@@ -29,5 +35,6 @@ export function renderHUD() {
   // Score (right)
   ctx.fillStyle = COLORS.bone
   ctx.textAlign = 'right'
-  ctx.fillText(`${game.score}`, GAME_WIDTH - 8, 10)
+  const muteIcon = isMuted() ? ' [M]' : ''
+  ctx.fillText(`${game.score}${muteIcon}`, GAME_WIDTH - 8, 10)
 }

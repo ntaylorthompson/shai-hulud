@@ -8,6 +8,7 @@ import { wasPressed, anyKeyPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, loseLife, addScore } from './game.js'
 import { renderHUD } from './hud.js'
+import { playMusic, sfxJump, sfxHookPlant, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
 
 // Sub-phases
 const PHASE = { WAIT: 0, JUMP: 1, QTE: 2, DEATH: 3, SUCCESS: 4 }
@@ -76,6 +77,7 @@ export const level1 = {
     qteTime = q.time
     qteIndex = 0
     qteTimeLeft = q.time
+    playMusic('level1')
   },
 
   update(dt) {
@@ -103,6 +105,7 @@ export const level1 = {
         phase = PHASE.JUMP
         playerVY = L1.jumpVelocity
         playerOnGround = false
+        sfxJump()
       }
     }
 
@@ -163,11 +166,13 @@ export const level1 = {
         if (wasPressed(key)) {
           if (key === expected) {
             qteIndex++
+            sfxHookPlant()
             if (qteIndex >= qteSequence.length) {
               // QTE complete — success!
               phase = PHASE.SUCCESS
               timer = 0
               addScore(100 * game.loop)
+              sfxSuccess()
               return
             }
           } else {
@@ -337,4 +342,5 @@ function die() {
   phase = PHASE.DEATH
   timer = 0
   loseLife()
+  sfxDeath()
 }

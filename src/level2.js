@@ -7,6 +7,7 @@ import { isDown } from './input.js'
 import { switchState } from './state.js'
 import { game, addScore } from './game.js'
 import { renderHUD } from './hud.js'
+import { playMusic, sfxEat, sfxSuccess } from './audio.js'
 
 let worm          // { segments: [{x,y}], angle, speed }
 let enemies       // [{x, y, type, vx, vy, alive}]
@@ -83,6 +84,7 @@ export const level2 = {
     // Spawn first wave immediately
     spawnWave()
     wave = 1
+    playMusic('level2')
   },
 
   update(dt) {
@@ -167,6 +169,7 @@ export const level2 = {
       if (cdist < eatRadius) {
         e.alive = false
         enemiesRemaining--
+        sfxEat()
 
         // Score with combo
         comboCount++
@@ -193,6 +196,7 @@ export const level2 = {
     if (wave >= totalWaves && enemies.length === 0) {
       phase = 'success'
       phaseTimer = 0
+      sfxSuccess()
     }
   },
 

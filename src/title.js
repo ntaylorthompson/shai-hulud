@@ -5,6 +5,7 @@ import { clear, drawText, getCtx } from './renderer.js'
 import { anyKeyPressed } from './input.js'
 import { switchState } from './state.js'
 import { resetGame, game } from './game.js'
+import { playMusic, sfxTransition } from './audio.js'
 
 let timer, fadeIn
 
@@ -63,6 +64,7 @@ export const title = {
     timer = 0
     fadeIn = 0
     loadHighScore()
+    playMusic('title')
   },
 
   update(dt) {
@@ -72,6 +74,7 @@ export const title = {
     if (timer > 0.5 && anyKeyPressed()) {
       resetGame()
       saveHighScore()
+      sfxTransition()
       switchState('level1')
     }
   },

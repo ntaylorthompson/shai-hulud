@@ -7,6 +7,7 @@ import { isDown, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { game, loseLife, addLife, addScore, nextLoop } from './game.js'
 import { renderHUD } from './hud.js'
+import { playMusic, sfxJump, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
 
 const PHASE = { AIM: 0, JUMPING: 1, DEATH: 2, SUCCESS: 3 }
 
@@ -90,6 +91,8 @@ export const level3 = {
     jumpCharge = 0
     jumpTrajectory = null
     playerPos = null
+    playMusic('level3')
+    sfxWormRumble()
   },
 
   update(dt) {
@@ -121,6 +124,7 @@ export const level3 = {
 
       // Release to jump
       if (!isDown('Space') && jumpCharge > 0) {
+        sfxJump()
         jumpTrajectory = {
           startX: GAME_WIDTH / 2,
           startY: GAME_HEIGHT / 2,
@@ -156,6 +160,7 @@ export const level3 = {
           addLife()
           addScore(200 * game.loop)
           nextLoop()
+          sfxSuccess()
           return
         }
 
@@ -378,4 +383,5 @@ function die() {
   phase = PHASE.DEATH
   timer = 0
   loseLife()
+  sfxDeath()
 }
