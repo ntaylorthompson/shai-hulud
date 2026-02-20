@@ -8,6 +8,7 @@ import { switchState } from './state.js'
 import { game, addScore } from './game.js'
 import { renderHUD } from './hud.js'
 import { playMusic, sfxEat, sfxSuccess } from './audio.js'
+import { triggerShake, spawnParticles, clearParticles } from './effects.js'
 
 let worm          // { segments: [{x,y}], angle, speed }
 let enemies       // [{x, y, type, vx, vy, alive}]
@@ -85,6 +86,7 @@ export const level2 = {
     spawnWave()
     wave = 1
     playMusic('level2')
+    clearParticles()
   },
 
   update(dt) {
@@ -108,6 +110,12 @@ export const level2 = {
     const head = worm.segments[0]
     head.x += Math.cos(worm.angle) * worm.speed * dt
     head.y += Math.sin(worm.angle) * worm.speed * dt
+
+    // Sand trail particles from tail
+    if (Math.random() < 0.3) {
+      const tail = worm.segments[worm.segments.length - 1]
+      spawnParticles(tail.x, tail.y, 1, { color: '#d4a030', speedMax: 20, life: 0.4, sizeMax: 3 })
+    }
 
     // Wrap around screen
     if (head.x < -20) head.x = GAME_WIDTH + 20
@@ -170,6 +178,7 @@ export const level2 = {
         e.alive = false
         enemiesRemaining--
         sfxEat()
+        spawnParticles(e.x, e.y, 10, { color: COLORS.burntOrange, speedMax: 60 })
 
         // Score with combo
         comboCount++
@@ -197,6 +206,7 @@ export const level2 = {
       phase = 'success'
       phaseTimer = 0
       sfxSuccess()
+      triggerShake(4, 0.3)
     }
   },
 

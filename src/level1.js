@@ -9,6 +9,7 @@ import { switchState } from './state.js'
 import { game, loseLife, addScore } from './game.js'
 import { renderHUD } from './hud.js'
 import { playMusic, sfxJump, sfxHookPlant, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
+import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
 
 // Sub-phases
 const PHASE = { WAIT: 0, JUMP: 1, QTE: 2, DEATH: 3, SUCCESS: 4 }
@@ -78,6 +79,7 @@ export const level1 = {
     qteIndex = 0
     qteTimeLeft = q.time
     playMusic('level1')
+    clearParticles()
   },
 
   update(dt) {
@@ -173,6 +175,7 @@ export const level1 = {
               timer = 0
               addScore(100 * game.loop)
               sfxSuccess()
+              spawnParticles(L1.playerX, playerY, 20, { color: '#44ff44', speedMax: 120 })
               return
             }
           } else {
@@ -343,4 +346,7 @@ function die() {
   timer = 0
   loseLife()
   sfxDeath()
+  triggerShake(8, 0.4)
+  triggerFlash('#ff0000', 0.2)
+  spawnParticles(L1.playerX, playerY, 15, { color: COLORS.sand, speedMax: 100 })
 }

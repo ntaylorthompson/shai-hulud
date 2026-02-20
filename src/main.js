@@ -11,6 +11,7 @@ import { level2 } from './level2.js'
 import { level3 } from './level3.js'
 import { gameover } from './gameover.js'
 import { updateHUD } from './hud.js'
+import { updateShake, applyShake, resetShake, updateFlash, renderFlash, updateParticles, renderParticles } from './effects.js'
 
 initRenderer()
 initInput()
@@ -27,12 +28,21 @@ switchState(STATES.TITLE)
 let lastTime = 0
 
 function loop(time) {
-  const dt = (time - lastTime) / 1000
+  const dt = Math.min((time - lastTime) / 1000, 0.05) // cap dt to avoid spiral
   lastTime = time
 
   updateHUD()
+  updateShake(dt)
+  updateFlash(dt)
+  updateParticles(dt)
+
+  applyShake()
   updateState(dt)
   renderState()
+  renderParticles()
+  renderFlash()
+  resetShake()
+
   clearFrame()
 
   requestAnimationFrame(loop)

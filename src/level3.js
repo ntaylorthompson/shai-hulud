@@ -8,6 +8,7 @@ import { switchState } from './state.js'
 import { game, loseLife, addLife, addScore, nextLoop } from './game.js'
 import { renderHUD } from './hud.js'
 import { playMusic, sfxJump, sfxDeath, sfxSuccess, sfxWormRumble } from './audio.js'
+import { triggerShake, triggerFlash, spawnParticles, clearParticles } from './effects.js'
 
 const PHASE = { AIM: 0, JUMPING: 1, DEATH: 2, SUCCESS: 3 }
 
@@ -93,6 +94,7 @@ export const level3 = {
     playerPos = null
     playMusic('level3')
     sfxWormRumble()
+    clearParticles()
   },
 
   update(dt) {
@@ -103,8 +105,13 @@ export const level3 = {
     // Update geysers
     for (const h of hazards) {
       if (h.type === 'geyser') {
+        const wasBefore = (h.timer % L3.geyserInterval) < L3.geyserDangerDuration
         h.timer += dt
         h.active = (h.timer % L3.geyserInterval) < L3.geyserDangerDuration
+        // Spawn particles on eruption start
+        if (h.active && !wasBefore) {
+          spawnParticles(h.x, h.y, 12, { color: COLORS.spiceBlue, speedMin: 30, speedMax: 80, life: 0.6 })
+        }
       }
     }
 
@@ -161,6 +168,7 @@ export const level3 = {
           addScore(200 * game.loop)
           nextLoop()
           sfxSuccess()
+          spawnParticles(playerPos.x, playerPos.y, 25, { color: '#44ff44', speedMax: 120 })
           return
         }
 
@@ -384,4 +392,9 @@ function die() {
   timer = 0
   loseLife()
   sfxDeath()
+  triggerShake(10, 0.5)
+  triggerFlash('#ff0000', 0.25)
+  if (playerPos) {
+    spawnParticles(playerPos.x, playerPos.y, 20, { color: COLORS.sand, speedMax: 100 })
+  }
 }

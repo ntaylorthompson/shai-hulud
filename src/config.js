@@ -39,9 +39,9 @@ export const L1 = {
 
   // Worm cycle timing (seconds)
   wormCycleDuration: 3.0,    // total surface+dive cycle
-  wormSafeWindowBase: 1.2,   // safe landing window at loop 1
-  wormSafeWindowMin: 0.4,    // minimum safe window at high loops
-  wormSafeWindowDecay: 0.1,  // shrink per loop
+  wormSafeWindowBase: 1.4,   // safe landing window at loop 1 (generous start)
+  wormSafeWindowMin: 0.35,   // minimum safe window at high loops
+  wormSafeWindowDecay: 0.12, // shrink per loop
 
   // Worm geometry
   wormSegments: 8,
@@ -52,9 +52,9 @@ export const L1 = {
   qteKeysBase: 3,            // keys required at loop 1
   qteKeysPerLoop: 1,         // additional keys per loop
   qteKeysMax: 8,
-  qteTimeBase: 3.0,          // seconds to complete QTE at loop 1
-  qteTimeMin: 1.5,
-  qteTimeDecay: 0.2,
+  qteTimeBase: 3.5,          // seconds to complete QTE at loop 1 (generous start)
+  qteTimeMin: 1.2,
+  qteTimeDecay: 0.25,
   qtePool: ['KeyA', 'KeyS', 'KeyD', 'KeyW', 'KeyJ', 'KeyK', 'KeyL'],
 
   // Death pause
