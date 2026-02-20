@@ -193,6 +193,12 @@ export const level2 = {
     if (isDown('ArrowLeft') || isDown('KeyA')) worm.angle -= turnSpeed * dt
     if (isDown('ArrowRight') || isDown('KeyD')) worm.angle += turnSpeed * dt
 
+    // Speed control — up/down to accelerate/brake
+    const speedAccel = L2.wormSpeed * 1.5  // rate of speed change per second
+    if (isDown('ArrowUp') || isDown('KeyW')) worm.speed += speedAccel * dt
+    if (isDown('ArrowDown') || isDown('KeyS')) worm.speed -= speedAccel * dt
+    worm.speed = Math.max(L2.wormSpeed * 0.5, Math.min(worm.speed, L2.wormSpeed * 1.5))
+
     // Move head
     const head = worm.segments[0]
     head.x += Math.cos(worm.angle) * worm.speed * dt
