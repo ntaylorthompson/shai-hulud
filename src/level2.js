@@ -29,7 +29,7 @@ let closeCallTimer    // countdown to display "CLOSE CALL"
 let closeCallTracking // true when near 2+ dangerous enemies
 let savedWorm, savedEnemies, savedWave, savedWaveTimer  // persist state on death
 let cannonCharges, cannonKillCount, cannonBeam
-const CANNON_KILLS_PER_CHARGE = 3
+const CANNON_KILLS_PER_CHARGE = 2
 
 // Shortest distance accounting for screen wrap
 function wrapDist(ax, ay, bx, by) {
@@ -267,13 +267,14 @@ export const level2 = {
       triggerFlash('#ffff00', 0.15)
     }
 
-    // Beam cannon — fire with SPACE
+    // Beam cannon — fire with SPACE, hits all enemies, multi-kill bonus
     if (wasPressed('Space') && cannonCharges > 0) {
       cannonCharges--
       const bDirX = Math.cos(worm.angle)
       const bDirY = Math.sin(worm.angle)
+      let beamKills = 0
       for (const e of enemies) {
-        if (!e.alive || e.size !== 'large') continue
+        if (!e.alive) continue
         const dx = wrapDelta(e.x, head.x, W)
         const dy = wrapDelta(e.y, head.y, H)
         const along = dx * bDirX + dy * bDirY
@@ -281,9 +282,13 @@ export const level2 = {
         if (along > 0 && along < 800 && perp < 22) {
           e.alive = false
           enemiesRemaining--
-          addScore(100 * game.loop)
+          beamKills++
           spawnParticles(e.x, e.y, 15, { color: '#88bbff', speedMax: 80 })
         }
+      }
+      // Points scale with multi-kill: 100 × loop × killCount per kill
+      if (beamKills > 0) {
+        addScore(100 * game.loop * beamKills * beamKills)
       }
       cannonBeam = { x: head.x, y: head.y, angle: worm.angle, timer: 0 }
       triggerFlash('#4488ff', 0.15)

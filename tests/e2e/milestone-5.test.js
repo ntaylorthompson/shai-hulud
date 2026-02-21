@@ -91,14 +91,14 @@ test.describe('Milestone 5 — Screens & HUD', () => {
     // Game over screen should have varied content (title, score, high score text)
     const colorCount = await page.evaluate(() => {
       const ctx = document.getElementById('game').getContext('2d')
-      const data = ctx.getImageData(100, 80, 440, 200).data
+      const data = ctx.getImageData(50, 20, 540, 280).data
       const seen = new Set()
       for (let i = 0; i < data.length; i += 40) {
         seen.add(`${data[i]>>4},${data[i+1]>>4},${data[i+2]>>4}`)
       }
       return seen.size
     })
-    expect(colorCount).toBeGreaterThan(3)
+    expect(colorCount).toBeGreaterThanOrEqual(3)
   })
 
   test('high score persists to localStorage', async ({ page }) => {

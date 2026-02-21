@@ -6,8 +6,9 @@ import { anyKeyPressed, wasPressed } from './input.js'
 import { switchState } from './state.js'
 import { resetGame, game, loadHighScores, saveHighScores } from './game.js'
 import { playMusic, sfxTransition } from './audio.js'
+import { startPreview } from './gameover.js'
 
-let timer, fadeIn, showingScores
+let timer, fadeIn, overlay // overlay: null | 'help' | 'scores'
 
 // Thin pixel font — Villeneuve's Dune uses clean, thin, spaced-out typography
 const TITLE_LETTERS = {
@@ -47,7 +48,7 @@ export const title = {
   enter() {
     timer = 0
     fadeIn = 0
-    showingScores = false
+    overlay = null
     loadHighScores()
     playMusic('title')
   },
@@ -57,11 +58,16 @@ export const title = {
     fadeIn = Math.min(fadeIn + dt * 1.5, 1)
 
     if (timer > 0.5 && anyKeyPressed()) {
-      if (showingScores) {
-        // Dismiss scores overlay without starting game
-        showingScores = false
+      if (overlay) {
+        // Dismiss overlay without starting game
+        overlay = null
       } else if (wasPressed('KeyH')) {
-        showingScores = true
+        overlay = 'help'
+      } else if (wasPressed('KeyS')) {
+        overlay = 'scores'
+      } else if (wasPressed('KeyP')) {
+        startPreview()
+        switchState('gameover')
       } else {
         resetGame()
         sfxTransition()
@@ -157,10 +163,10 @@ export const title = {
       })
     }
 
-    // Practice + high scores prompts
+    // Shortcut prompts
     if (timer > 1.0) {
       ctx.globalAlpha = 0.5
-      drawText('press 3 to practice dismount  |  press H for high scores', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
+      drawText('H = help   S = high scores   3 = practice dismount', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
         color: COLORS.ochre,
         size: 9,
       })
@@ -175,8 +181,127 @@ export const title = {
     })
     ctx.globalAlpha = 1
 
+    // Help overlay
+    if (overlay === 'help') {
+      ctx.fillStyle = 'rgba(5, 3, 2, 0.92)'
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+
+      drawText('H O W  T O  P L A Y', GAME_WIDTH / 2, 30, {
+        color: COLORS.bone,
+        size: 20,
+      })
+
+      const left = GAME_WIDTH * 0.08
+      const right = GAME_WIDTH * 0.92
+      const mid = GAME_WIDTH / 2
+      let y = 60
+
+      // Level 1
+      ctx.globalAlpha = 0.9
+      drawText('L E V E L  1  —  M O U N T  T H E  W O R M', mid, y, {
+        color: COLORS.spiceBlue, size: 12,
+      })
+      ctx.globalAlpha = 0.6
+      y += 18
+      drawText('left / right — run across the desert', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('space — jump onto the worm (land on its body, avoid the head!)', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('arrow keys — complete the hook-planting sequence (QTE)', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+
+      // Level 2
+      y += 26
+      ctx.globalAlpha = 0.9
+      drawText('L E V E L  2  —  R I D E  T H E  W O R M', mid, y, {
+        color: COLORS.spiceBlue, size: 12,
+      })
+      ctx.globalAlpha = 0.6
+      y += 18
+      drawText('left / right — steer the worm', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('up / down — speed up or slow down', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('eat small enemies for points — avoid large ones (they kill you)', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('eat 3 small enemies to charge a beam — space to fire at large enemies', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('chain kills for combo multiplier — eat near large enemies for danger bonus', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+
+      // Level 3
+      y += 26
+      ctx.globalAlpha = 0.9
+      drawText('L E V E L  3  —  D I S M O U N T  T H E  W O R M', mid, y, {
+        color: COLORS.spiceBlue, size: 12,
+      })
+      ctx.globalAlpha = 0.6
+      y += 18
+      drawText('left / right — move along the worm body', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('up / down — walk to a nearby rock (shown in green)', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('hold space — charge jump power, then release to launch', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('left / right while charging — aim your jump direction', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('land on a rock to survive — farther jumps score more points', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+
+      // General
+      y += 26
+      ctx.globalAlpha = 0.9
+      drawText('G E N E R A L', mid, y, {
+        color: COLORS.spiceBlue, size: 12,
+      })
+      ctx.globalAlpha = 0.6
+      y += 18
+      drawText('M — toggle music/sound    |    survive all 3 levels to loop', mid, y, {
+        color: COLORS.bone, size: 10,
+      })
+      y += 14
+      drawText('each loop gets harder but scores more — how far can you go?', mid, y, {
+        color: COLORS.ochre, size: 10,
+      })
+
+      // Dismiss
+      ctx.globalAlpha = 1
+      const blinkH = Math.sin(timer * 2.5) > 0
+      if (blinkH) {
+        ctx.globalAlpha = 0.5
+        drawText('press any key to return', GAME_WIDTH / 2, GAME_HEIGHT - 20, {
+          color: COLORS.bone,
+          size: 10,
+        })
+      }
+      ctx.globalAlpha = 1
+    }
+
     // High scores overlay
-    if (showingScores) {
+    if (overlay === 'scores') {
       ctx.fillStyle = 'rgba(5, 3, 2, 0.88)'
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
@@ -223,8 +348,8 @@ export const title = {
       }
 
       // Dismiss hint
-      const blink = Math.sin(timer * 2.5) > 0
-      if (blink) {
+      const blinkS = Math.sin(timer * 2.5) > 0
+      if (blinkS) {
         ctx.globalAlpha = 0.5
         drawText('press any key to return', GAME_WIDTH / 2, GAME_HEIGHT * 0.82, {
           color: COLORS.bone,
