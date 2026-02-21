@@ -4,23 +4,10 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
 import { anyKeyPressed, wasPressed } from './input.js'
 import { switchState } from './state.js'
-import { resetGame, game } from './game.js'
+import { resetGame, game, loadHighScores, saveHighScores } from './game.js'
 import { playMusic, sfxTransition } from './audio.js'
 
 let timer, fadeIn
-
-function loadHighScore() {
-  try {
-    const stored = localStorage.getItem('shaiHulud_highScore')
-    if (stored) game.highScore = parseInt(stored, 10) || 0
-  } catch (e) { /* localStorage unavailable */ }
-}
-
-function saveHighScore() {
-  try {
-    localStorage.setItem('shaiHulud_highScore', String(game.highScore))
-  } catch (e) { /* localStorage unavailable */ }
-}
 
 // Thin pixel font — Villeneuve's Dune uses clean, thin, spaced-out typography
 const TITLE_LETTERS = {
@@ -60,7 +47,7 @@ export const title = {
   enter() {
     timer = 0
     fadeIn = 0
-    loadHighScore()
+    loadHighScores()
     playMusic('title')
   },
 
@@ -70,7 +57,6 @@ export const title = {
 
     if (timer > 0.5 && anyKeyPressed()) {
       resetGame()
-      saveHighScore()
       sfxTransition()
       if (wasPressed('Digit3')) {
         switchState('level3')
@@ -173,13 +159,22 @@ export const title = {
       ctx.globalAlpha = 1
     }
 
-    // High score — minimal
-    if (game.highScore > 0) {
-      ctx.globalAlpha = 0.5
-      drawText(`high score  ${game.highScore}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.7, {
+    // High scores table
+    if (game.highScores.length > 0) {
+      ctx.globalAlpha = 0.4
+      drawText('H I G H  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT * 0.7, {
         color: COLORS.ochre,
-        size: 10,
+        size: 9,
       })
+      ctx.globalAlpha = 0.5
+      for (let i = 0; i < game.highScores.length; i++) {
+        const h = game.highScores[i]
+        const loopStr = h.loop === '?' ? '' : `  loop ${h.loop}`
+        drawText(`${i + 1}.  ${h.score}${loopStr}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.7 + 14 + i * 13, {
+          color: i === 0 ? COLORS.bone : COLORS.ochre,
+          size: 9,
+        })
+      }
       ctx.globalAlpha = 1
     }
 

@@ -4,22 +4,18 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from './config.js'
 import { clear, drawText, getCtx } from './renderer.js'
 import { anyKeyPressed } from './input.js'
 import { switchState } from './state.js'
-import { game } from './game.js'
+import { game, saveHighScores } from './game.js'
 
-let timer, fadeIn, displayScore
-
-function saveHighScore() {
-  try {
-    localStorage.setItem('shaiHulud_highScore', String(game.highScore))
-  } catch (e) { /* localStorage unavailable */ }
-}
+let timer, fadeIn, displayScore, rank
 
 export const gameover = {
   enter() {
     timer = 0
     fadeIn = 0
     displayScore = 0
-    saveHighScore()
+    // Determine rank before saving (so we can highlight it)
+    rank = game.highScores.filter(h => h.score > game.score).length
+    saveHighScores()
   },
 
   update(dt) {
@@ -78,16 +74,26 @@ export const gameover = {
       })
     }
 
-    // High score
-    if (timer > 1.5) {
-      ctx.globalAlpha = fadeIn * Math.min((timer - 1.5) * 2, 1) * 0.5
-      const isNew = game.score >= game.highScore && game.score > 0
-      drawText(
-        isNew ? `new high score` : `high score  ${game.highScore}`,
-        GAME_WIDTH / 2,
-        GAME_HEIGHT / 2 + 55,
-        { color: isNew ? COLORS.bone : COLORS.ochre, size: 10 }
-      )
+    // High scores table
+    if (timer > 1.5 && game.highScores.length > 0) {
+      const tableAlpha = fadeIn * Math.min((timer - 1.5) * 2, 1)
+      ctx.globalAlpha = tableAlpha * 0.4
+      drawText('H I G H  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 50, {
+        color: COLORS.ochre,
+        size: 9,
+      })
+      for (let i = 0; i < game.highScores.length; i++) {
+        const h = game.highScores[i]
+        const isCurrentRun = i === rank && game.score > 0 && h.score === game.score
+        const loopStr = h.loop === '?' ? '' : `  loop ${h.loop}`
+        ctx.globalAlpha = tableAlpha * (isCurrentRun ? 0.9 : 0.5)
+        drawText(
+          `${i + 1}.  ${h.score}${loopStr}`,
+          GAME_WIDTH / 2,
+          GAME_HEIGHT / 2 + 64 + i * 13,
+          { color: isCurrentRun ? COLORS.bone : COLORS.ochre, size: 9 }
+        )
+      }
     }
 
     ctx.globalAlpha = 1
@@ -97,7 +103,7 @@ export const gameover = {
       const blink = Math.sin(timer * 2) > 0
       if (blink) {
         ctx.globalAlpha = 0.5
-        drawText('press any key', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 90, {
+        drawText('press any key', GAME_WIDTH / 2, GAME_HEIGHT / 2 + 140, {
           color: COLORS.bone,
           size: 10,
         })
