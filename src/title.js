@@ -7,7 +7,7 @@ import { switchState } from './state.js'
 import { resetGame, game, loadHighScores, saveHighScores } from './game.js'
 import { playMusic, sfxTransition } from './audio.js'
 
-let timer, fadeIn
+let timer, fadeIn, showingScores
 
 // Thin pixel font — Villeneuve's Dune uses clean, thin, spaced-out typography
 const TITLE_LETTERS = {
@@ -47,6 +47,7 @@ export const title = {
   enter() {
     timer = 0
     fadeIn = 0
+    showingScores = false
     loadHighScores()
     playMusic('title')
   },
@@ -56,12 +57,19 @@ export const title = {
     fadeIn = Math.min(fadeIn + dt * 1.5, 1)
 
     if (timer > 0.5 && anyKeyPressed()) {
-      resetGame()
-      sfxTransition()
-      if (wasPressed('Digit3')) {
-        switchState('level3')
+      if (showingScores) {
+        // Dismiss scores overlay without starting game
+        showingScores = false
+      } else if (wasPressed('KeyH')) {
+        showingScores = true
       } else {
-        switchState('level1')
+        resetGame()
+        sfxTransition()
+        if (wasPressed('Digit3')) {
+          switchState('level3')
+        } else {
+          switchState('level1')
+        }
       }
     }
   },
@@ -149,32 +157,13 @@ export const title = {
       })
     }
 
-    // Practice prompt — always visible after fade-in
+    // Practice + high scores prompts
     if (timer > 1.0) {
       ctx.globalAlpha = 0.5
-      drawText('press 3 to practice dismount', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
+      drawText('press 3 to practice dismount  |  press H for high scores', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
         color: COLORS.ochre,
         size: 9,
       })
-      ctx.globalAlpha = 1
-    }
-
-    // High scores table
-    if (game.highScores.length > 0) {
-      ctx.globalAlpha = 0.4
-      drawText('H I G H  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT * 0.7, {
-        color: COLORS.ochre,
-        size: 9,
-      })
-      ctx.globalAlpha = 0.5
-      for (let i = 0; i < game.highScores.length; i++) {
-        const h = game.highScores[i]
-        const loopStr = h.loop === '?' ? '' : `  loop ${h.loop}`
-        drawText(`${i + 1}.  ${h.score}${loopStr}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.7 + 14 + i * 13, {
-          color: i === 0 ? COLORS.bone : COLORS.ochre,
-          size: 9,
-        })
-      }
       ctx.globalAlpha = 1
     }
 
@@ -185,5 +174,62 @@ export const title = {
       size: 8,
     })
     ctx.globalAlpha = 1
+
+    // High scores overlay
+    if (showingScores) {
+      ctx.fillStyle = 'rgba(5, 3, 2, 0.88)'
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
+
+      drawText('H I G H  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT * 0.2, {
+        color: COLORS.bone,
+        size: 22,
+      })
+
+      if (game.highScores.length === 0) {
+        ctx.globalAlpha = 0.5
+        drawText('no scores yet', GAME_WIDTH / 2, GAME_HEIGHT * 0.45, {
+          color: COLORS.ochre,
+          size: 12,
+        })
+        ctx.globalAlpha = 1
+      } else {
+        for (let i = 0; i < game.highScores.length; i++) {
+          const h = game.highScores[i]
+          const loopStr = h.loop === '?' ? '' : `loop ${h.loop}`
+          const y = GAME_HEIGHT * 0.32 + i * 28
+
+          // Rank
+          ctx.globalAlpha = i === 0 ? 0.9 : 0.6
+          drawText(`${i + 1}.`, GAME_WIDTH * 0.3, y, {
+            color: i === 0 ? COLORS.bone : COLORS.ochre,
+            size: 14,
+          })
+          // Score
+          drawText(`${h.score}`, GAME_WIDTH * 0.5, y, {
+            color: i === 0 ? COLORS.bone : COLORS.ochre,
+            size: 14,
+          })
+          // Loop
+          if (loopStr) {
+            drawText(loopStr, GAME_WIDTH * 0.7, y, {
+              color: COLORS.ochre,
+              size: 11,
+            })
+          }
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // Dismiss hint
+      const blink = Math.sin(timer * 2.5) > 0
+      if (blink) {
+        ctx.globalAlpha = 0.5
+        drawText('press any key to return', GAME_WIDTH / 2, GAME_HEIGHT * 0.82, {
+          color: COLORS.bone,
+          size: 10,
+        })
+        ctx.globalAlpha = 1
+      }
+    }
   },
 }
