@@ -108,8 +108,7 @@ function beginCycle() {
   const totalLen = NUM_SEGS * SEG_GAP + 60
   wHeadX = wDir === 1 ? -totalLen : GAME_WIDTH + totalLen
   wSurfX = 100 + Math.random() * (GAME_WIDTH - 200)
-  // Difficulty: narrower zone + faster at higher loops
-  wSurfW = Math.max(180 - 12 * (game.loop - 1), 90)
+  wSurfW = 180
   wArcH = 18 + Math.random() * 15
   wSpeed = 160 + 15 * (game.loop - 1)
   wActive = true

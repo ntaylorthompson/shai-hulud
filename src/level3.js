@@ -44,7 +44,7 @@ function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
 function generateRocks() {
   const r = []
-  const count = L3.rockCountBase + L3.rockCountPerLoop * (game.loop - 1)
+  const count = Math.min(L3.rockCountBase + L3.rockCountPerLoop * (game.loop - 1), 7)
 
   // First rock: guaranteed within walk range of a mid-body worm segment
   const segIdx = Math.min(4, NUM_SEGS - 1)

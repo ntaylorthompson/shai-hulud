@@ -56,12 +56,14 @@ function spawnEnemy(type, size) {
   else if (edge === 2) { x = Math.random() * W; y = H + 20 }
   else { x = -20; y = Math.random() * H }
 
-  const speedMult = 1 + L2.enemySpeedMultPerLoop * (game.loop - 1)
   let speed
-  if (type === 'soldier') speed = L2.soldierSpeed * speedMult
-  else if (type === 'harvester') speed = L2.harvesterSpeed * speedMult
-  else speed = L2.ornithopterSpeed * speedMult
-  if (size === 'large') speed *= 0.7
+  if (type === 'soldier') speed = L2.soldierSpeed
+  else if (type === 'harvester') speed = L2.harvesterSpeed
+  else speed = L2.ornithopterSpeed
+  if (size === 'large') {
+    const speedMult = 1 + L2.enemySpeedMultPerLoop * (game.loop - 1)
+    speed = speed * speedMult * 0.7
+  }
 
   const dx = W / 2 - x
   const dy = H / 2 - y

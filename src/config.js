@@ -79,7 +79,7 @@ export const L2 = {
   wormGrowthPerLoop: 2,
   wormMaxLength: 20,
   wormSegmentSize: 20,
-  wormTurnRadiusGrowth: 0.15,  // turn speed penalty per extra segment
+  wormTurnRadiusGrowth: 0,     // no turn speed penalty per extra segment
 
   // Enemies
   soldierSpeed: 40,
