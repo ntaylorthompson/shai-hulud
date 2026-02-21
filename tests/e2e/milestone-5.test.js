@@ -112,8 +112,11 @@ test.describe('Milestone 5 — Screens & HUD', () => {
       game.game.score = 9999
       game.game.highScore = 9999
       state.switchState('gameover')
-      // Wait for enter() to fire which saves high score
+      // Wait for enter() then simulate initials entry + save
       await new Promise(r => setTimeout(r, 100))
+      // If score qualifies, saveHighScores is deferred until initials entry
+      // Call it directly to test persistence
+      game.saveHighScores('TST')
       return localStorage.getItem('shaiHulud_highScore')
     })
     expect(stored).toBe('9999')

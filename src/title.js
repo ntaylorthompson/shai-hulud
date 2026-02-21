@@ -195,23 +195,25 @@ export const title = {
       } else {
         for (let i = 0; i < game.highScores.length; i++) {
           const h = game.highScores[i]
+          const tag = h.initials || '---'
           const loopStr = h.loop === '?' ? '' : `loop ${h.loop}`
           const y = GAME_HEIGHT * 0.32 + i * 28
 
-          // Rank
           ctx.globalAlpha = i === 0 ? 0.9 : 0.6
-          drawText(`${i + 1}.`, GAME_WIDTH * 0.3, y, {
+          drawText(`${i + 1}.`, GAME_WIDTH * 0.25, y, {
             color: i === 0 ? COLORS.bone : COLORS.ochre,
             size: 14,
           })
-          // Score
-          drawText(`${h.score}`, GAME_WIDTH * 0.5, y, {
+          drawText(tag, GAME_WIDTH * 0.37, y, {
             color: i === 0 ? COLORS.bone : COLORS.ochre,
             size: 14,
           })
-          // Loop
+          drawText(`${h.score}`, GAME_WIDTH * 0.55, y, {
+            color: i === 0 ? COLORS.bone : COLORS.ochre,
+            size: 14,
+          })
           if (loopStr) {
-            drawText(loopStr, GAME_WIDTH * 0.7, y, {
+            drawText(loopStr, GAME_WIDTH * 0.72, y, {
               color: COLORS.ochre,
               size: 11,
             })

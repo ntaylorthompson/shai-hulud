@@ -56,11 +56,16 @@ export function loadHighScores() {
   } catch (e) { /* localStorage unavailable */ }
 }
 
-export function saveHighScores() {
+export function scoreQualifies() {
+  if (game.score <= 0) return false
+  if (game.highScores.length < 5) return true
+  return game.score > game.highScores[game.highScores.length - 1].score
+}
+
+export function saveHighScores(initials) {
   try {
-    // Insert current score if it qualifies
     if (game.score > 0) {
-      game.highScores.push({ score: game.score, loop: game.loop })
+      game.highScores.push({ score: game.score, loop: game.loop, initials: initials || '---' })
       game.highScores.sort((a, b) => b.score - a.score)
       game.highScores = game.highScores.slice(0, 5)
       game.highScore = game.highScores[0].score
