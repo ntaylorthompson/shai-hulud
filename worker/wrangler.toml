@@ -1,0 +1,6 @@
+name = "shai-hulud-scores"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+ALLOWED_ORIGINS = "https://ntthompson.github.io,http://localhost:8000,http://localhost:8080"

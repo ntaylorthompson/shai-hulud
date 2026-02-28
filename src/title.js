@@ -7,8 +7,10 @@ import { switchState } from './state.js'
 import { resetGame, game, loadHighScores, saveHighScores } from './game.js'
 import { playMusic, sfxTransition } from './audio.js'
 import { startPreview } from './gameover.js'
+import { invalidateCache, fetchGlobalScores } from './leaderboard.js'
 
 let timer, fadeIn, overlay // overlay: null | 'help' | 'scores'
+let scoresPage = 0
 
 // Thin pixel font — Villeneuve's Dune uses clean, thin, spaced-out typography
 const TITLE_LETTERS = {
@@ -58,13 +60,33 @@ export const title = {
     fadeIn = Math.min(fadeIn + dt * 1.5, 1)
 
     if (timer > 0.5 && anyKeyPressed()) {
-      if (overlay) {
-        // Dismiss overlay without starting game
+      if (overlay === 'scores') {
+        // Pagination: arrow keys navigate pages
+        const source = game.globalScores.length > 0 ? game.globalScores : game.highScores
+        const totalPages = Math.max(1, Math.ceil(source.length / 10))
+        if (wasPressed('ArrowRight') || wasPressed('ArrowDown')) {
+          scoresPage = Math.min(scoresPage + 1, totalPages - 1)
+          return
+        }
+        if (wasPressed('ArrowLeft') || wasPressed('ArrowUp')) {
+          scoresPage = Math.max(scoresPage - 1, 0)
+          return
+        }
+        // Any other key dismisses
+        overlay = null
+      } else if (overlay) {
+        // Dismiss other overlays
         overlay = null
       } else if (wasPressed('KeyH')) {
         overlay = 'help'
       } else if (wasPressed('KeyS')) {
         overlay = 'scores'
+        scoresPage = 0
+        invalidateCache()
+        fetchGlobalScores().then(scores => {
+          game.globalScores = scores
+          game.globalLoaded = true
+        })
       } else if (wasPressed('KeyP')) {
         startPreview()
         switchState('gameover')
@@ -166,7 +188,7 @@ export const title = {
     // Shortcut prompts
     if (timer > 1.0) {
       ctx.globalAlpha = 0.5
-      drawText('H = help   S = high scores   3 = practice dismount', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
+      drawText('H = help   S = global scores   3 = practice dismount', GAME_WIDTH / 2, GAME_HEIGHT * 0.64, {
         color: COLORS.ochre,
         size: 9,
       })
@@ -300,49 +322,73 @@ export const title = {
       ctx.globalAlpha = 1
     }
 
-    // High scores overlay
+    // Global scores overlay
     if (overlay === 'scores') {
       ctx.fillStyle = 'rgba(5, 3, 2, 0.88)'
       ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT)
 
-      drawText('H I G H  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT * 0.2, {
+      drawText('G L O B A L  S C O R E S', GAME_WIDTH / 2, GAME_HEIGHT * 0.12, {
         color: COLORS.bone,
         size: 22,
       })
 
-      if (game.highScores.length === 0) {
-        ctx.globalAlpha = 0.5
-        drawText('no scores yet', GAME_WIDTH / 2, GAME_HEIGHT * 0.45, {
+      if (!game.globalLoaded) {
+        // Loading state
+        const dots = '.'.repeat(1 + Math.floor(timer * 2) % 3)
+        ctx.globalAlpha = 0.6
+        drawText(`loading${dots}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.45, {
           color: COLORS.ochre,
-          size: 12,
+          size: 14,
         })
         ctx.globalAlpha = 1
       } else {
-        for (let i = 0; i < game.highScores.length; i++) {
-          const h = game.highScores[i]
-          const tag = h.initials || '---'
-          const loopStr = h.loop === '?' ? '' : `loop ${h.loop}`
-          const y = GAME_HEIGHT * 0.32 + i * 28
+        const source = game.globalScores.length > 0 ? game.globalScores : game.highScores
+        const totalPages = Math.max(1, Math.ceil(source.length / 10))
+        const page = Math.min(scoresPage, totalPages - 1)
+        const pageStart = page * 10
+        const pageScores = source.slice(pageStart, pageStart + 10)
 
-          ctx.globalAlpha = i === 0 ? 0.9 : 0.6
-          drawText(`${i + 1}.`, GAME_WIDTH * 0.25, y, {
-            color: i === 0 ? COLORS.bone : COLORS.ochre,
-            size: 14,
+        if (source.length === 0) {
+          ctx.globalAlpha = 0.5
+          drawText('no scores yet', GAME_WIDTH / 2, GAME_HEIGHT * 0.45, {
+            color: COLORS.ochre,
+            size: 12,
           })
-          drawText(tag, GAME_WIDTH * 0.37, y, {
-            color: i === 0 ? COLORS.bone : COLORS.ochre,
-            size: 14,
-          })
-          drawText(`${h.score}`, GAME_WIDTH * 0.55, y, {
-            color: i === 0 ? COLORS.bone : COLORS.ochre,
-            size: 14,
-          })
-          if (loopStr) {
-            drawText(loopStr, GAME_WIDTH * 0.72, y, {
-              color: COLORS.ochre,
-              size: 11,
-            })
+          ctx.globalAlpha = 1
+        } else {
+          for (let i = 0; i < pageScores.length; i++) {
+            const h = pageScores[i]
+            const globalIdx = pageStart + i
+            const tag = h.initials || '---'
+            const loopStr = h.loop === '?' ? '' : `loop ${h.loop}`
+            const y = GAME_HEIGHT * 0.22 + i * 22
+
+            const isTop3 = globalIdx < 3
+            ctx.globalAlpha = isTop3 ? 0.9 : 0.6
+            const color = isTop3 ? COLORS.bone : COLORS.ochre
+
+            drawText(`${globalIdx + 1}.`, GAME_WIDTH * 0.2, y, { color, size: 13 })
+            drawText(tag, GAME_WIDTH * 0.33, y, { color, size: 13 })
+            drawText(`${h.score}`, GAME_WIDTH * 0.55, y, { color, size: 13 })
+            if (loopStr) {
+              drawText(loopStr, GAME_WIDTH * 0.73, y, { color: COLORS.ochre, size: 10 })
+            }
+            ctx.globalAlpha = 1
           }
+        }
+
+        // Page indicator
+        if (totalPages > 1) {
+          ctx.globalAlpha = 0.5
+          drawText(`page ${page + 1} / ${totalPages}`, GAME_WIDTH / 2, GAME_HEIGHT * 0.86, {
+            color: COLORS.ochre,
+            size: 10,
+          })
+          ctx.globalAlpha = 0.4
+          drawText('< / > to browse', GAME_WIDTH / 2, GAME_HEIGHT * 0.90, {
+            color: COLORS.ochre,
+            size: 9,
+          })
           ctx.globalAlpha = 1
         }
       }
@@ -351,7 +397,7 @@ export const title = {
       const blinkS = Math.sin(timer * 2.5) > 0
       if (blinkS) {
         ctx.globalAlpha = 0.5
-        drawText('press any key to return', GAME_WIDTH / 2, GAME_HEIGHT * 0.82, {
+        drawText('press any key to return', GAME_WIDTH / 2, GAME_HEIGHT * 0.94, {
           color: COLORS.bone,
           size: 10,
         })

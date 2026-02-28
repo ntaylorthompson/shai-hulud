@@ -1,13 +1,16 @@
 // Shared game session state — lives, score, loop number
 
 import { INITIAL_LIVES } from './config.js'
+import { fetchGlobalScores, submitScore, migrateLocalScores } from './leaderboard.js'
 
 export const game = {
   lives: INITIAL_LIVES,
   score: 0,
   loop: 1,
   highScore: 0,
-  highScores: [],  // [{score, loop}] top 5
+  highScores: [],  // [{score, loop}] top 5 (localStorage)
+  globalScores: [], // remote top 50
+  globalLoaded: false,
 }
 
 export function resetGame() {
@@ -54,12 +57,28 @@ export function loadHighScores() {
     }
     game.highScore = game.highScores.length > 0 ? game.highScores[0].score : 0
   } catch (e) { /* localStorage unavailable */ }
+
+  // Fire-and-forget: migrate local scores then fetch global
+  migrateLocalScores()
+    .then(() => fetchGlobalScores())
+    .then(scores => {
+      game.globalScores = scores
+      game.globalLoaded = true
+    })
+    .catch(() => {
+      // Fallback to local scores
+      game.globalScores = game.highScores.slice()
+      game.globalLoaded = true
+    })
 }
 
 export function scoreQualifies() {
   if (game.score <= 0) return false
-  if (game.highScores.length < 5) return true
-  return game.score > game.highScores[game.highScores.length - 1].score
+  // Check against global scores if available
+  const list = game.globalScores.length > 0 ? game.globalScores : game.highScores
+  const limit = game.globalScores.length > 0 ? 50 : 5
+  if (list.length < limit) return true
+  return game.score > list[list.length - 1].score
 }
 
 export function saveHighScores(initials) {
@@ -73,4 +92,21 @@ export function saveHighScores(initials) {
     localStorage.setItem('shaiHulud_highScores', JSON.stringify(game.highScores))
     localStorage.setItem('shaiHulud_highScore', String(game.highScore))
   } catch (e) { /* localStorage unavailable */ }
+
+  // Fire-and-forget: submit to global leaderboard
+  if (game.score > 0 && initials && initials !== '---') {
+    submitScore(initials, game.score, game.loop).then(ok => {
+      if (ok) {
+        // Optimistic insert into globalScores
+        game.globalScores.push({
+          initials,
+          score: game.score,
+          loop: game.loop,
+          created_at: new Date().toISOString(),
+        })
+        game.globalScores.sort((a, b) => b.score - a.score)
+        game.globalScores = game.globalScores.slice(0, 50)
+      }
+    })
+  }
 }

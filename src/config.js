@@ -106,6 +106,9 @@ export const L2 = {
   successPause: 2.0,
 }
 
+// Worker API
+export const WORKER_URL = 'https://shai-hulud-scores.ntthompson.workers.dev'
+
 // Level 3 — Dismount the Worm
 export const L3 = {
   // Worm dive

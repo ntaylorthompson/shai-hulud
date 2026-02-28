@@ -734,15 +734,16 @@ function drawTitleAnimation(ctx, titleInfo, t) {
 // ============ DISPLAY LIST ============
 
 function getDisplayList() {
+  const source = game.globalScores.length > 0 ? game.globalScores : game.highScores
   if (enteringInitials) {
-    const list = game.highScores.map(h => ({ ...h, isNew: false }))
+    const list = source.map(h => ({ ...h, isNew: false }))
     list.splice(rank, 0, {
       score: game.score, loop: game.loop,
       initials: initials.join('') || null, isNew: true,
     })
-    return list.slice(0, 5)
+    return list.slice(0, 10)
   }
-  return game.highScores.map((h, i) => ({
+  return source.slice(0, 10).map((h, i) => ({
     ...h, isNew: i === rank && game.score > 0 && h.score === game.score,
   }))
 }
@@ -767,11 +768,13 @@ export const gameover = {
       enteringInitials = true
       initials = ['', '', '']
       initialPos = 0
-      rank = game.highScores.filter(h => h.score > game.score).length
+      const source = game.globalScores.length > 0 ? game.globalScores : game.highScores
+      rank = source.filter(h => h.score > game.score).length
     } else {
       enteringInitials = false
       saveHighScores()
-      rank = game.highScores.findIndex(h => h.score === game.score)
+      const source = game.globalScores.length > 0 ? game.globalScores : game.highScores
+      rank = source.findIndex(h => h.score === game.score)
     }
   },
 
@@ -861,7 +864,7 @@ export const gameover = {
     const loopTextY = hasTitle ? 186 : 108
     const tableHeaderY = hasTitle ? 202 : 135
     const tableStartY = hasTitle ? 218 : 155
-    const rowH = hasTitle ? 22 : 28
+    const rowH = hasTitle ? 17 : 22
 
     // Score
     const showScore = Math.floor(displayScore)
@@ -882,7 +885,7 @@ export const gameover = {
       if (enteringInitials) {
         drawText('Y O U  M A D E  T H E  B O A R D !', W / 2, tableHeaderY, { color: COLORS.bone, size: 11 })
       } else {
-        drawText('H I G H  S C O R E S', W / 2, tableHeaderY, { color: COLORS.ochre, size: 10 })
+        drawText('G L O B A L  S C O R E S', W / 2, tableHeaderY, { color: COLORS.ochre, size: 10 })
       }
 
       const colRank = W * 0.18
@@ -904,7 +907,7 @@ export const gameover = {
         const rowAlpha = tableAlpha * (isHighlighted ? 0.95 : 0.5)
         const color = isHighlighted ? COLORS.bone : COLORS.ochre
         ctx.globalAlpha = rowAlpha
-        const fs = hasTitle ? 12 : 13
+        const fs = hasTitle ? 11 : 12
 
         drawText(`${i + 1}.`, colRank, y, { color, size: fs })
 
@@ -943,9 +946,18 @@ export const gameover = {
         drawText('no scores yet', W / 2, tableStartY + 20, { color: COLORS.ochre, size: 12 })
       }
 
+      // Player rank indicator when not visible in table
+      let extraY = 0
+      if (!enteringInitials && rank >= 10 && game.score > 0) {
+        const rankY = tableStartY + list.length * rowH + 4
+        ctx.globalAlpha = tableAlpha * 0.7
+        drawText(`YOUR RANK: #${rank + 1}`, W / 2, rankY, { color: COLORS.spiceBlue, size: 11 })
+        extraY = 18
+      }
+
       // Prompts below table
       ctx.globalAlpha = tableAlpha * 0.7
-      const promptY = tableStartY + Math.max(list.length, 1) * rowH + 10
+      const promptY = tableStartY + Math.max(list.length, 1) * rowH + 10 + extraY
 
       if (enteringInitials) {
         if (initialPos < 3) {
