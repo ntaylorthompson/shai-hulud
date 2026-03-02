@@ -107,7 +107,7 @@ export const L2 = {
 }
 
 // Worker API
-export const WORKER_URL = 'https://shai-hulud-scores.ntthompson.workers.dev'
+export const WORKER_URL = 'https://shai-hulud-scores.n-taylor-thompson.workers.dev'
 
 // Level 3 — Dismount the Worm
 export const L3 = {
